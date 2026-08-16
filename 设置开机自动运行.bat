@@ -1,25 +1,23 @@
 @echo off
 rem ============================================================
-rem  å¼€æœºè‡ªåŠ¨è¿è¡Œ - ä¸€é”®æ³¨å†Œ
-rem  æ•ˆæœ: æ¯æ¬¡ç™»å½•ç”µè„‘åè‡ªåŠ¨æ‰§è¡Œ run_daily.pyï¼ˆå»¶è¿Ÿ60ç§’ç­‰ç½‘ç»œï¼‰
-rem        - è¡Œæƒ…è¶…è¿‡7å¤©æœªæ›´æ–° â†’ è‡ªåŠ¨ä¸‹è½½æœ€æ–°çœŸå®æ•°æ®
-rem        - æ•°æ®è¾ƒæ–° â†’ ç§’çº§å®Œæˆï¼ˆä¿¡å·/è¯„ä¼°/æ¨¡æ‹Ÿç›˜/è¯Šæ–­/çœ‹æ¿ï¼‰
-rem  ç”¨æ³•: åŒå‡»æœ¬æ–‡ä»¶æ³¨å†Œï¼›æƒ³å–æ¶ˆè§ä¸‹æ–¹å‘½ä»¤
+rem  ¿ª»ú×Ô¶¯ÔËĞĞ - Ò»¼ü×¢²á
+rem  Ğ§¹û: Ã¿´ÎµÇÂ¼µçÄÔºó×Ô¶¯Ö´ĞĞÃ¿ÈÕÁ÷³Ì(ÑÓ³Ù60ÃëµÈÍøÂç)
+rem  ÓÃ·¨: Ë«»÷±¾ÎÄ¼ş×¢²á; È¡Ïû: schtasks /Delete /TN AIQuantDaily /F
 rem ============================================================
-chcp 65001 >nul 2>&1
+chcp 936 >nul 2>&1
 cd /d "%~dp0"
 
 set PY=D:\Python\python.exe
 if not exist "%PY%" (
-    echo [ERROR] Python not found: %PY%
+    echo [ERROR] ÕÒ²»µ½ Python: %PY%
     pause
     exit /b 1
 )
 
-schtasks /Create /TN "AIQuantDaily" /TR "\"%~dp0å¼€æœºè‡ªåŠ¨è¿è¡Œ_æ¯æ—¥æµç¨‹.bat\"" /SC ONLOGON /F
+schtasks /Create /TN "AIQuantDaily" /TR "\"%~dp0¿ª»ú×Ô¶¯ÔËĞĞ_Ã¿ÈÕÁ÷³Ì.bat\"" /SC ONLOGON /F
 
 echo.
-echo [å®Œæˆ] å·²æ³¨å†Œ: æ¯æ¬¡ç™»å½•ç”µè„‘è‡ªåŠ¨è¿è¡Œæ¯æ—¥æµç¨‹
-echo        æŸ¥çœ‹: schtasks /Query /TN AIQuantDaily
-echo        å–æ¶ˆ: schtasks /Delete /TN AIQuantDaily /F
+echo [Íê³É] ÒÑ×¢²á: Ã¿´ÎµÇÂ¼µçÄÔ×Ô¶¯ÔËĞĞÃ¿ÈÕÁ÷³Ì
+echo        ²é¿´: schtasks /Query /TN AIQuantDaily
+echo        È¡Ïû: schtasks /Delete /TN AIQuantDaily /F
 pause

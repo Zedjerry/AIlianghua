@@ -1,0 +1,2 @@
+# 批处理文件固定 CRLF 行尾（Windows 专用，避免 git 转换破坏 GBK 编码）
+*.bat text eol=crlf
