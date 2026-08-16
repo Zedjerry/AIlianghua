@@ -27,7 +27,9 @@ import sys
 import threading
 from datetime import datetime
 
-from flask import Flask, jsonify, render_template_string, send_from_directory
+from flask import Flask, jsonify, render_template_string, request, send_from_directory
+
+import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
@@ -229,6 +231,61 @@ def api_task():
     return jsonify(TASK)
 
 
+@app.route("/api/stock_list")
+def api_stock_list():
+    """全部股票代码+名称（供 K 线下拉选择）"""
+    df = safe_read(os.path.join(DATA_DIR, "stock_list.csv"), dtype={"code": str})
+    if df is None or df.empty:
+        return jsonify([])
+    rows = [{"code": r.code, "name": getattr(r, "name", "")} for r in df.itertuples()]
+    rows.sort(key=lambda x: x["code"])
+    return jsonify(rows)
+
+
+@app.route("/api/kline")
+def api_kline():
+    """生成某只股票的日 K 线图（红涨绿跌 + MA5/20/60 + 成交量）"""
+    code = request.args.get("code", "")
+    try:
+        days = int(request.args.get("days", 250))
+    except ValueError:
+        days = 250
+    if not code:
+        return jsonify({"ok": False, "msg": "缺少 code 参数"})
+    try:
+        import mplfinance as mpf
+        import matplotlib
+        matplotlib.use("Agg")
+        from matplotlib import pyplot as plt
+
+        df = safe_read(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
+        if df is None:
+            return jsonify({"ok": False, "msg": "缺少行情数据"})
+        d = df[df["code"] == code][["date", "open", "high", "low", "close", "volume"]]
+        d = d.tail(days).copy()
+        if d.empty:
+            return jsonify({"ok": False, "msg": f"没有 {code} 的行情数据"})
+        d["date"] = pd.to_datetime(d["date"])
+        d = d.set_index("date")
+        d.index.name = "Date"
+        d.columns = [c.lower() for c in d.columns]
+
+        mc = mpf.make_marketcolors(up="red", down="green", edge="inherit",
+                                   wick="inherit", volume="inherit")  # A股红涨绿跌
+        style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":", gridcolor="#cccccc")
+        fig, _ = mpf.plot(d, type="candle", style=style, volume=True,
+                          mav=(5, 20, 60), figsize=(12, 7),
+                          title=f"{code} 日K线（近{days}个交易日）",
+                          ylabel="价格", ylabel_lower="成交量",
+                          returnfig=True)
+        out = os.path.join(OUTPUT_DIR, "kline.png")
+        fig.savefig(out, dpi=110, bbox_inches="tight")
+        plt.close(fig)
+        return jsonify({"ok": True, "url": "/img/kline.png"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
+
+
 @app.route("/api/run_daily", methods=["POST"])
 def api_run_daily():
     if TASK["running"]:
@@ -309,6 +366,7 @@ HTML = r"""<!DOCTYPE html>
  <span class="tab" data-p="signals" onclick="showPage(this)">信号</span>
  <span class="tab" data-p="account" onclick="showPage(this)">模拟盘</span>
  <span class="tab" data-p="eval" onclick="showPage(this)">评估</span>
+ <span class="tab" data-p="kline" onclick="showPage(this)">K线</span>
  <span class="tab" data-p="alerts" onclick="showPage(this)">告警</span>
 </div>
 
@@ -343,6 +401,24 @@ HTML = r"""<!DOCTYPE html>
   <tbody id="evalbody"></tbody></table></div>
 </div>
 
+<div id="kline" class="page">
+ <div class="panel"><h2>K线图（红涨绿跌 · 含 5/20/60 日均线与成交量）</h2>
+  <div style="margin:10px 0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+   <input id="kcode" list="stocklist" placeholder="输入代码或名称，如 000001 / 平安银行"
+          style="flex:1;min-width:220px;padding:8px;border-radius:8px;border:1px solid #374151;background:#0b0f1a;color:#e8eaf0">
+   <datalist id="stocklist"></datalist>
+   <select id="kdays" style="padding:8px;border-radius:8px;border:1px solid #374151;background:#0b0f1a;color:#e8eaf0">
+    <option value="120">近半年</option>
+    <option value="250" selected>近一年</option>
+    <option value="500">近两年</option>
+   </select>
+   <button class="btn" onclick="showKline()">查看</button>
+  </div>
+  <div id="kmsg" style="color:#f87171;font-size:12px;margin-bottom:8px"></div>
+  <img id="klineimg" style="display:none;max-width:100%;border-radius:8px">
+ </div>
+</div>
+
 <div id="alerts" class="page">
  <div class="panel"><h2>告警记录</h2><div id="alertbody" class="empty"></div></div>
 </div>
@@ -355,6 +431,26 @@ function showPage(el){
  document.getElementById(el.dataset.p).classList.add('active');
 }
 async function get(url){const r=await fetch(url);return r.json();}
+// K线: 加载股票列表 + 查询
+async function loadStockList(){
+ const list=await get('/api/stock_list');
+ document.getElementById('stocklist').innerHTML=
+   list.map(s=>`<option value="${s.code} ${s.name}">`).join('');
+}
+async function showKline(){
+ const raw=document.getElementById('kcode').value.trim();
+ const code=(raw.split(' ')[0]||'').match(/\d{6}/)?.[0]||'';
+ const days=document.getElementById('kdays').value;
+ const img=document.getElementById('klineimg');
+ const msg=document.getElementById('kmsg');
+ if(!code){msg.textContent='请输入6位股票代码';return;}
+ msg.textContent='加载中...';
+ const r=await get('/api/kline?code='+code+'&days='+days);
+ if(r.ok){img.src='/img/kline.png?t='+Date.now();img.style.display='block';msg.textContent='';}
+ else{img.style.display='none';msg.textContent=r.msg;}
+}
+document.getElementById('kcode').addEventListener('keydown',e=>{if(e.key==='Enter')showKline();});
+loadStockList();
 async function runAction(url){
  const r=await fetch(url,{method:'POST'});const j=await r.json();
  alert(j.msg);refresh();
