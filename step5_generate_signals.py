@@ -35,18 +35,20 @@ RAW_DROP = ["open", "high", "low", "close", "volume", "amount"]  # 与 step2 一
 
 
 def is_data_fresh() -> bool:
-    """已有行情数据是否够新（7 个自然日内）——够新就跳过下载，让每日运行只要几秒"""
+    """已有行情数据是否够新——够新就跳过下载，让每日运行只要几秒。
+    窗口取 2 天: 每个交易日收盘后的数据次日必更新（保证真实数据每天最新），
+    周末两天内不重复下载。"""
     path = os.path.join(DATA_DIR, "stock_daily.csv")
     if not os.path.exists(path):
         return False
     latest = pd.to_datetime(pd.read_csv(path, usecols=["date"])["date"].max())
-    return (datetime.now() - latest).days <= 7
+    return (datetime.now() - latest).days <= 2
 
 
 def get_daily():
     """获取最新行情：数据新鲜就复用本地，否则重新下载"""
     if is_data_fresh():
-        print("① 已有行情数据较新（7天内），跳过下载（如需强制更新，删除 data/stock_daily.csv 再运行）", flush=True)
+        print("① 行情数据已是最新（2天内），跳过下载（交易日新数据会自动更新）", flush=True)
         stock_list = pd.read_csv(os.path.join(DATA_DIR, "stock_list.csv"), dtype={"code": str})
         daily = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
         return stock_list, daily

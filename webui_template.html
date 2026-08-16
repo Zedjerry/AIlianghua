@@ -408,8 +408,26 @@ async function loadFormulas(){
   `<tr><td>${r.file}</td><td>${r.symbol}</td><td>${r.score}</td>
    <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.decoded}">${r.decoded}</td>
    <td><button class="btn" style="margin-right:4px" onclick="applyFormula('${r.file}')">应用</button>
+       <button class="btn" style="margin-right:4px;background:#7c3aed" onclick="backtestFormula('${r.file}')">回测</button>
        <button class="btn ghost" onclick="aiAnalyze('${r.file}')">AI解读</button></td></tr>`).join('')
   || '<tr><td colspan="5" class="empty">还没有挖出的公式</td></tr>';
+}
+async function backtestFormula(file){
+ const box=document.getElementById('mineai');
+ box.style.display='block'; box.innerHTML='<span style="color:var(--accent)">回测中（真实行情，约几秒）...</span>';
+ const r=await fetch('/api/formula_backtest',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({file,code:file.split('_')[0]})});
+ const j=await r.json();
+ if(!j.ok){box.innerHTML='<span style="color:var(--up)">'+j.msg+'</span>';return;}
+ const m=j.metrics;
+ box.innerHTML=`<h3 style="margin:6px 0;font-size:14px">公式单票回测: ${m.code}（${m.date_range}，${m.bars}根K线）</h3>
+  <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))">
+   ${cardHtml('策略总收益',(m.total_return*100).toFixed(0)+'%',m.decoded,m.total_return>=0?'up':'down')}
+   ${cardHtml('年化',(m.annual_return*100).toFixed(1)+'%','夏普 '+m.sharpe,m.annual_return>=0?'up':'down')}
+   ${cardHtml('最大回撤',(m.max_drawdown*100).toFixed(1)+'%','买入持有 '+(m.bench_total*100).toFixed(0)+'%',m.max_drawdown<0?'down':'up')}
+   ${cardHtml('日胜率',(m.win_rate*100).toFixed(0)+'%','含成本 '+ '0.05%/次')}
+  </div>
+  <div class="kimg"><img src="${j.chart}?t=${Date.now()}" style="max-width:100%"></div>`;
 }
 async function aiAnalyze(file){
  const box=document.getElementById('mineai');

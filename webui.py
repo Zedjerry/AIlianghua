@@ -453,6 +453,24 @@ def api_mine_analysis():
         return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
 
 
+@app.route("/api/formula_backtest", methods=["POST"])
+def api_formula_backtest():
+    """公式单票回测（tanh 仓位，真实行情，约几秒）"""
+    data = request.get_json(silent=True) or {}
+    fname = str(data.get("file", ""))
+    code = str(data.get("code", ""))
+    fpath = os.path.join(BASE_DIR, "formulas", fname)
+    if not fname.endswith(".json") or not os.path.exists(fpath):
+        return jsonify({"ok": False, "msg": "公式文件不存在"})
+    try:
+        import formula_backtest
+        m = formula_backtest.run_backtest(code, fpath)
+        return jsonify({"ok": True, "metrics": m,
+                        "chart": f"/img/formula_backtest_{code}.png"})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
+
+
 @app.route("/api/run_daily", methods=["POST"])
 def api_run_daily():
     if TASK["running"]:
