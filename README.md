@@ -43,7 +43,7 @@ quant-beginner/
 ├── connection.py             ← 断线重连工具（指数退避自动重试，实盘连接用）
 ├── setup_schedule.bat        ← 一键注册每日自动任务（双击即可）
 ├── selftest.py               ← 一键自检（环境/数据/模块全查一遍，换电脑后必跑）
-├── go_live_check.py          ← 实盘上线检查（GO/NO-GO 判定，缺什么一目了然）
+├── go_live_check.py          ← 实盘上线检查（GO/NO-GO 判定，只认向前验证数据，自动区分回填/前瞻）
 ├── experiment.py             ← 参数敏感性实验（过拟合预警：扫描持仓数×换仓频率）
 ├── docs/
 │   ├── 使用手册.md           ← 📖 从这读起：完整操作说明（日常/FAQ/上线流程）

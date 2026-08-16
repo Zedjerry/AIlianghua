@@ -39,12 +39,6 @@ def item(name: str, ok: bool, note: str = ""):
 
 
 def main():
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--yes-forward", action="store_true",
-                        help="跳过确认，直接认定评估数据为向前验证")
-    args = parser.parse_args()
-
     print("===== 实盘上线检查 =====\n")
 
     # 1) 环境
@@ -74,29 +68,26 @@ def main():
     else:
         item("模拟盘正常", False, "先运行 step7 建立模拟盘")
 
-    # 4) 信号评估（核心！）
+    # 4) 信号评估（核心！只认"向前验证"数据，回填的样本内数据不算数）
     if os.path.exists("output/signal_evaluation.csv"):
         ev = pd.read_csv("output/signal_evaluation.csv")
-        n = len(ev)
-        win = (ev["超额收益"] > 0).mean() if n else 0.0
-        excess = ev["超额收益"].mean() if n else 0.0
+        if "来源" in ev.columns:
+            fwd = ev[ev["来源"] == "forward"]
+            bfill = ev[ev["来源"] != "forward"]
+            n = len(fwd)
+            win = (fwd["超额收益"] > 0).mean() if n else 0.0
+            excess = fwd["超额收益"].mean() if n else 0.0
+            note = (f"向前验证 {n} 期" + (f"（另有回填 {len(bfill)} 期不计入）" if len(bfill) else "")
+                    + (f", 胜率 {win:.0%}, 平均超额 {excess:+.2%}" if n else ""))
+        else:
+            n, win, excess, note = 0, 0.0, 0.0, "评估表无来源标记，请用新版 step6 重新累积"
         ok = n >= MIN_EVAL_ROWS and win >= WIN_RATE and excess >= EXCESS
-        item("信号达标", bool(ok),
-             f"{n} 期评估, 胜率 {win:.0%}, 平均超额 {excess:+.2%}")
-        if n > 0:
-            print("    [提示] 请确认: 以上评估是否来自【向前验证】（每天 run_daily 累积）？")
-            print("          回填历史信号属于样本内后验，不能作为实盘依据。")
-            if args.yes_forward:
-                print("    [确认] 已通过 --yes-forward 认定评估为向前验证数据")
-            else:
-                try:
-                    ans = input("          确认是向前验证数据？(y/n): ").strip().lower()
-                except EOFError:
-                    ans = "n"
-                if ans != "y":
-                    item("向前验证确认", False, "请继续用 run_daily 累积真实前瞻数据")
+        item("信号达标(向前验证)", bool(ok), note)
+        if n < MIN_EVAL_ROWS:
+            print(f"    [提示] 需要至少 {MIN_EVAL_ROWS} 期向前验证数据，"
+                  f"请坚持每天运行 run_daily.py 累积（目前 {n} 期）")
     else:
-        item("信号达标", False, "没有评估数据，先运行 run_daily 累积")
+        item("信号达标(向前验证)", False, "没有评估数据，先运行 run_daily 累积")
 
     # 5) 告警可写
     try:

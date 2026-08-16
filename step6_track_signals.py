@@ -69,13 +69,15 @@ def load_benchmark() -> pd.DataFrame:
     return idx
 
 
-def record_signal(date_str: str, top_df: pd.DataFrame) -> bool:
-    """把某天的 Top20 信号存档（已存在则跳过）"""
+def record_signal(date_str: str, top_df: pd.DataFrame, source: str = "forward") -> bool:
+    """把某天的 Top20 信号存档（已存在则跳过）。source: backfill(回填)/forward(向前验证)"""
     path = os.path.join(HISTORY_DIR, f"{date_str}_signals.csv")
     if os.path.exists(path):
         return False
+    top_df = top_df.copy()
+    top_df["source"] = source   # 标注信号来源，评估时区分样本内外
     top_df.to_csv(path, index=False, encoding="utf-8-sig")
-    print(f"   [已存档] {date_str} 的信号 -> {os.path.basename(path)}", flush=True)
+    print(f"   [已存档] {date_str} 的信号({source}) -> {os.path.basename(path)}", flush=True)
     return True
 
 
@@ -91,8 +93,10 @@ def evaluate(date_str: str, daily: pd.DataFrame, bench: pd.DataFrame):
         return None  # 该日信号还看不到 5 个交易日之后的数据
     b = bench[bench["date"] == date_str]["fwd5"]
     bench_ret = float(b.iloc[0]) if len(b) else np.nan
+    source = str(sig["source"].iloc[0]) if "source" in sig.columns else "backfill"  # 旧文件无标签按回填算
     return {"date": date_str, "信号5日收益": realized,
-            "沪深300同期": bench_ret, "超额收益": realized - bench_ret}
+            "沪深300同期": bench_ret, "超额收益": realized - bench_ret,
+            "来源": source}
 
 
 def generate_signal_at(df, feature_cols, date_str: str) -> pd.DataFrame:
@@ -129,7 +133,7 @@ def backfill(df, feature_cols, start: str):
             continue
         top = generate_signal_at(df, feature_cols, d)
         if top is not None:
-            record_signal(d, top)
+            record_signal(d, top, source="backfill")  # 回填历史信号 = 样本内
 
 
 # ---------- 主流程 ----------
@@ -147,7 +151,8 @@ def main():
         s5.main()
     today_sig = pd.read_csv(sig_file, dtype={"code": str})
     today_date = str(today_sig["date"].iloc[0])
-    record_signal(today_date, today_sig[["code", "name", "close", "pred_5d_return"]])
+    record_signal(today_date, today_sig[["code", "name", "close", "pred_5d_return"]],
+                  source="forward")  # 今日信号 = 向前验证
 
     daily = load_prices()
     bench = load_benchmark()
@@ -175,13 +180,16 @@ def main():
     ev.to_csv(os.path.join(OUTPUT_DIR, "signal_evaluation.csv"), index=False, encoding="utf-8-sig")
 
     wins = (ev["超额收益"] > 0).mean()
+    n_fwd = int((ev["来源"] == "forward").sum()) if "来源" in ev.columns else 0
+    n_bfill = len(ev) - n_fwd
     print(f"\n========== 信号质量评估报告（共 {len(ev)} 次信号） ==========", flush=True)
+    print(f"  来源构成: 向前验证 {n_fwd} 期 + 回填 {n_bfill} 期", flush=True)
     print(f"  信号平均5日收益: {ev['信号5日收益'].mean():.2%}", flush=True)
     print(f"  沪深300同期平均: {ev['沪深300同期'].mean():.2%}", flush=True)
     print(f"  平均超额收益:   {ev['超额收益'].mean():.2%}", flush=True)
     print(f"  跑赢指数胜率:   {wins:.1%}（{int(wins * len(ev))}/{len(ev)}）", flush=True)
     print(f"  评估明细已保存: {os.path.join(OUTPUT_DIR, 'signal_evaluation.csv')}", flush=True)
-    print("\n  判读标准: 胜率>60% 且平均超额>0 → 信号有真实预测力，可进入阶段3(自动下单)", flush=True)
+    print("\n  判读标准(只认向前验证): 胜率>60% 且平均超额>0 且满8期 → 可进入阶段3", flush=True)
     print("  提醒: 回填信号属于样本内后验；请坚持每天运行本脚本做真正的向前验证。", flush=True)
 
 
