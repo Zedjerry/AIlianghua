@@ -242,6 +242,36 @@ def api_stock_list():
     return jsonify(rows)
 
 
+def gen_kline_png(code: str, days: int, out_name: str) -> bool:
+    """生成某只股票的日 K 线图 PNG，返回是否成功"""
+    import mplfinance as mpf
+    from matplotlib import pyplot as plt
+
+    df = safe_read(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
+    if df is None:
+        return False
+    d = df[df["code"] == code][["date", "open", "high", "low", "close", "volume"]]
+    d = d.tail(days).copy()
+    if d.empty:
+        return False
+    d["date"] = pd.to_datetime(d["date"])
+    d = d.set_index("date")
+    d.index.name = "Date"
+    d.columns = [c.lower() for c in d.columns]
+
+    mc = mpf.make_marketcolors(up="red", down="green", edge="inherit",
+                               wick="inherit", volume="inherit")  # A股红涨绿跌
+    style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":", gridcolor="#cccccc")
+    fig, _ = mpf.plot(d, type="candle", style=style, volume=True,
+                      mav=(5, 20, 60), figsize=(12, 7),
+                      title=f"{code} 日K线（近{days}个交易日）",
+                      ylabel="价格", ylabel_lower="成交量",
+                      returnfig=True)
+    fig.savefig(os.path.join(OUTPUT_DIR, out_name), dpi=110, bbox_inches="tight")
+    plt.close(fig)
+    return True
+
+
 @app.route("/api/kline")
 def api_kline():
     """生成某只股票的日 K 线图（红涨绿跌 + MA5/20/60 + 成交量）"""
@@ -253,37 +283,35 @@ def api_kline():
     if not code:
         return jsonify({"ok": False, "msg": "缺少 code 参数"})
     try:
-        import mplfinance as mpf
-        import matplotlib
-        matplotlib.use("Agg")
-        from matplotlib import pyplot as plt
-
-        df = safe_read(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
-        if df is None:
-            return jsonify({"ok": False, "msg": "缺少行情数据"})
-        d = df[df["code"] == code][["date", "open", "high", "low", "close", "volume"]]
-        d = d.tail(days).copy()
-        if d.empty:
+        ok = gen_kline_png(code, days, "kline.png")
+        if not ok:
             return jsonify({"ok": False, "msg": f"没有 {code} 的行情数据"})
-        d["date"] = pd.to_datetime(d["date"])
-        d = d.set_index("date")
-        d.index.name = "Date"
-        d.columns = [c.lower() for c in d.columns]
-
-        mc = mpf.make_marketcolors(up="red", down="green", edge="inherit",
-                                   wick="inherit", volume="inherit")  # A股红涨绿跌
-        style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":", gridcolor="#cccccc")
-        fig, _ = mpf.plot(d, type="candle", style=style, volume=True,
-                          mav=(5, 20, 60), figsize=(12, 7),
-                          title=f"{code} 日K线（近{days}个交易日）",
-                          ylabel="价格", ylabel_lower="成交量",
-                          returnfig=True)
-        out = os.path.join(OUTPUT_DIR, "kline.png")
-        fig.savefig(out, dpi=110, bbox_inches="tight")
-        plt.close(fig)
         return jsonify({"ok": True, "url": "/img/kline.png"})
     except Exception as e:
         return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
+
+
+@app.route("/api/top2_kline")
+def api_top2_kline():
+    """首页用：今日信号预测涨幅最高的两只股票的 K 线"""
+    sig = safe_read(os.path.join(OUTPUT_DIR, "signals_today.csv"), dtype={"code": str})
+    if sig is None or sig.empty:
+        return jsonify({"ok": False, "msg": "暂无今日信号（先运行每日流程）"})
+    names = load_names()
+    top = sig.sort_values("pred_5d_return", ascending=False).head(2)
+    out = {"ok": True, "urls": [], "titles": []}
+    for i, r in enumerate(top.itertuples()):
+        code = r.code
+        name = getattr(r, "name", "") or names.get(code, "")
+        pred = float(getattr(r, "pred_5d_return", 0))
+        fname = f"kline_top{i + 1}.png"
+        try:
+            ok = gen_kline_png(code, 120, fname)
+        except Exception:
+            ok = False
+        out["urls"].append(f"/img/{fname}" if ok else None)
+        out["titles"].append(f"{code} {name} · 预测+{pred * 100:.2f}%")
+    return jsonify(out)
 
 
 @app.route("/api/run_daily", methods=["POST"])
@@ -376,6 +404,10 @@ HTML = r"""<!DOCTYPE html>
   <div class="panel"><h2>模拟盘净值 vs 沪深300</h2><img id="navimg" src="/img/dashboard_nav.png?t=0"></div>
   <div class="panel"><h2>信号超额收益</h2><img id="excessimg" src="/img/dashboard_excess.png?t=0"></div>
  </div>
+ <div class="grid2">
+  <div class="panel"><h2 id="k1title">今日信号 #1 K线</h2><img id="k1img" style="max-width:100%"></div>
+  <div class="panel"><h2 id="k2title">今日信号 #2 K线</h2><img id="k2img" style="max-width:100%"></div>
+ </div>
 </div>
 
 <div id="signals" class="page">
@@ -455,11 +487,26 @@ async function runAction(url){
  const r=await fetch(url,{method:'POST'});const j=await r.json();
  alert(j.msg);refresh();
 }
+let lastSigDate = null;
+async function loadTop2Kline(sigdate){
+ if(!sigdate || sigdate===lastSigDate) return;  // 信号日没变就不重复生成
+ lastSigDate = sigdate;
+ const r = await get('/api/top2_kline');
+ if(r.ok){
+   const t1=document.getElementById('k1title'), t2=document.getElementById('k2title');
+   const i1=document.getElementById('k1img'), i2=document.getElementById('k2img');
+   t1.textContent = r.titles[0] ? r.titles[0]+' K线' : '今日信号 #1';
+   t2.textContent = r.titles[1] ? r.titles[1]+' K线' : '今日信号 #2';
+   if(r.urls[0]) i1.src=r.urls[0]+'?t='+Date.now();
+   if(r.urls[1]) i2.src=r.urls[1]+'?t='+Date.now();
+ }
+}
 function fmtPct(x){return (x>=0?'+':'')+ (x*100).toFixed(2)+'%';}
 async function refresh(){
  // 概览卡片
  const ov=await get('/api/overview');
  document.getElementById('sigdate').textContent='信号日 '+ov.signal_date;
+ loadTop2Kline(ov.signal_date);   // 首页 Top2 信号 K线（信号日变化时更新）
  const cards=document.getElementById('cards'); cards.innerHTML='';
  const items=[
   ['模拟盘净值',ov.equity==null?'-':ov.equity.toLocaleString()+' 元',ov.return==null?'':fmtPct(ov.return)],
