@@ -20,14 +20,20 @@ expand_universe.py — 股票池扩容到全市场 A 股
 import argparse
 import glob
 import os
+import socket
 import time
 from datetime import datetime
 
 import akshare as ak
 import pandas as pd
 
+# 关键: 全局 socket 超时。akshare 内部请求不带 timeout，
+# 某只股票连接挂起会导致整个扩容无限等待。15秒无响应即放弃该只。
+socket.setdefaulttimeout(15)
+
 DATA_DIR = "data"
 OLD_DIR = r"D:\量化\数据\A股数据 (1)\parquet\stocks"
+PROGRESS_FILE = os.path.join(DATA_DIR, "expand_progress.txt")   # 断点续传
 os.makedirs(DATA_DIR, exist_ok=True)
 
 CATCHUP_START = "2026-07-08"   # 旧数据截止次日
@@ -103,20 +109,29 @@ def main():
     if failed:
         print(f"   转换失败 {len(failed)} 只: {failed[:10]}", flush=True)
 
-    # ② 新浪补最近（慢）
+    # ② 新浪补最近（慢，带断点续传）
     if args.skip_catchup:
         print("② 跳过新浪补数据（--skip-catchup）", flush=True)
     else:
-        print(f"② 新浪补 {CATCHUP_START} 至今（约30-40分钟，逐只进度）...", flush=True)
+        done_codes = set()
+        if os.path.exists(PROGRESS_FILE):
+            with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
+                done_codes = set(x.strip() for x in f if x.strip())
+            if done_codes:
+                print(f"② 续传: 已抓取 {len(done_codes)} 只，跳过继续...", flush=True)
+        todo = [c for c in codes if c not in done_codes]
+        print(f"② 新浪补 {CATCHUP_START} 至今，剩余 {len(todo)} 只（约每只0.6秒）...", flush=True)
         fresh = []
         t0 = time.time()
-        for i, code in enumerate(codes):
+        for i, code in enumerate(todo):
             df = fetch_sina(code, CATCHUP_START)
             if df is not None:
                 fresh.append(df)
+            with open(PROGRESS_FILE, "a", encoding="utf-8") as f:
+                f.write(code + "\n")
             if (i + 1) % 200 == 0:
-                print(f"   进度 {i+1}/{len(codes)} "
-                      f"({(time.time()-t0)/(i+1)*len(codes)/60:.0f}分钟预计)", flush=True)
+                print(f"   进度 {i+1}/{len(todo)} "
+                      f"({(time.time()-t0)/(i+1)*len(todo)/60:.0f}分钟预计)", flush=True)
             time.sleep(0.05)
         if fresh:
             new = pd.concat(fresh, ignore_index=True)
