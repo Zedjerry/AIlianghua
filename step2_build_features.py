@@ -25,6 +25,7 @@ import pandas as pd
 DATA_DIR = "data"
 OUTPUT = os.path.join(DATA_DIR, "features.csv")
 EXTRA_CSV = os.path.join(DATA_DIR, "extra_factors.csv")
+AM_EXTRA_CSV = os.path.join(DATA_DIR, "extra_factors_am.csv")  # AlphaMaster 挖出的因子
 
 # 未来多少天收益作为标签（预测目标）
 LABEL_HORIZON = 5
@@ -107,6 +108,13 @@ def merge_extra_factors(df: pd.DataFrame) -> pd.DataFrame:
         rk = f"rank_{f}"
         if f in df.columns and rk not in df.columns:
             df[rk] = df.groupby("date")[f].rank(pct=True)
+    # AlphaMaster 因子挖掘中心挖出的因子（factor_miner.py 生成）
+    if os.path.exists(AM_EXTRA_CSV):
+        am = pd.read_csv(AM_EXTRA_CSV, dtype={"code": str})
+        df = df.merge(am, on=["date", "code"], how="left")
+        if "am_factor" in df.columns:
+            df["rank_am_factor"] = df.groupby("date")["am_factor"].rank(pct=True)
+            print("[提示] 已合并 AlphaMaster 因子: am_factor + rank_am_factor")
     return df
 
 
