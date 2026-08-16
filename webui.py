@@ -31,6 +31,13 @@ from flask import Flask, jsonify, render_template_string, request, send_from_dir
 
 import pandas as pd
 
+# ---- matplotlib 中文字体（K线图等图表必须，否则中文变方块） ----
+import matplotlib
+matplotlib.use("Agg")
+from matplotlib import pyplot as plt
+plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "SimSun"]
+plt.rcParams["axes.unicode_minus"] = False
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 DATA_DIR = os.path.join(BASE_DIR, "data")
