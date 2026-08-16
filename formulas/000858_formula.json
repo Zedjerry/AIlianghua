@@ -1,0 +1,20 @@
+{
+  "vocab_version": "v9217a2c0d91a",
+  "symbol": "000858",
+  "timeframe": "D1",
+  "data_file": "D:\\量化\\数据\\A股数据 (1)\\parquet\\stocks\\000858_daily.parquet",
+  "mode": "parquet_file",
+  "formula": [
+    25,
+    40,
+    81,
+    96,
+    91,
+    5,
+    97,
+    126
+  ],
+  "formula_decoded": "MFI14 -> RS_VOL -> TS_STD_10 -> TS_SKEW_10 -> WMA -> ATR -> TS_MIN_20 -> IF_GT",
+  "best_score": 1.047729253768921,
+  "train_steps": 150
+}

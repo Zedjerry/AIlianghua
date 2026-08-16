@@ -1,0 +1,20 @@
+{
+  "vocab_version": "v9217a2c0d91a",
+  "symbol": "601318",
+  "timeframe": "D1",
+  "data_file": "D:\\量化\\数据\\A股数据 (1)\\parquet\\stocks\\601318_daily.parquet",
+  "mode": "parquet_file",
+  "formula": [
+    49,
+    22,
+    34,
+    36,
+    40,
+    65,
+    116,
+    72
+  ],
+  "formula_decoded": "DMI_DIFF_14 -> BOLL_WIDTH -> PPO -> RET_ACCEL -> RS_VOL -> ADD -> MAX -> GATE",
+  "best_score": 1.1307917833328247,
+  "train_steps": 150
+}
