@@ -29,6 +29,9 @@ quant-beginner/
 ├── step3_train_model.py     ← ③ 训练模型
 ├── step4_backtest.py        ← ④ 回测
 ├── step5_generate_signals.py ← ⑤ 每日交易信号（自动量化的第一步，见下方专节）
+├── step6_track_signals.py    ← ⑥ 信号存档与质量评估（阶段2 模拟盘验证工具）
+├── docs/
+│   └── QMT接入指南.md        ← 阶段3：对接券商QMT自动下单的操作指南
 ├── data/                    ← ① 生成的原始数据（自动创建）
 └── output/                  ← ③④⑤ 生成的模型/预测/回测报告/每日信号（自动创建）
 ```
