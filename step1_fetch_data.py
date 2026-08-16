@@ -49,15 +49,46 @@ def to_sina_symbol(code: str) -> str:
     return ("sh" if code.startswith("6") else "sz") + code
 
 
+def _normalize_cons(df: pd.DataFrame) -> pd.DataFrame:
+    """把各数据源返回的成分股表统一成 code/name 两列（自动识别代码列）"""
+    df = df.copy()
+    code_col = None
+    for c in df.columns:
+        # 找"绝大多数值都是6位数字"的列，即股票代码列
+        if df[c].astype(str).str.fullmatch(r"\d{6}").mean() > 0.5:
+            code_col = c
+            break
+    if code_col is None:
+        raise ValueError(f"无法识别股票代码列: {list(df.columns)}")
+    name_col = [c for c in df.columns if c != code_col][0]  # 剩余第一列当作名称
+    out = pd.DataFrame({
+        "code": df[code_col].astype(str).str.zfill(6),
+        "name": df[name_col].astype(str),
+    })
+    return out.drop_duplicates(subset="code").reset_index(drop=True)
+
+
 def fetch_stock_list() -> pd.DataFrame:
-    """沪深300成分股列表（中证指数官网）"""
-    df = fetch_with_retry(ak.index_stock_cons_csindex, symbol="000300")
-    df = df[["成分券代码", "成分券名称"]].copy()
-    df.columns = ["code", "name"]
-    df["code"] = df["code"].astype(str).str.zfill(6)
-    df.to_csv(os.path.join(DATA_DIR, "stock_list.csv"), index=False, encoding="utf-8-sig")
-    print(f"[OK] 成分股列表: {len(df)} 只，已保存 data/stock_list.csv", flush=True)
-    return df
+    """沪深300成分股列表（多数据源自动切换，哪个通就用哪个）"""
+    sources = [
+        ("新浪", ak.index_stock_cons, {"symbol": "000300"}),              # 首选：稳定快速，约288只
+        ("中证指数", ak.index_stock_cons_csindex, {"symbol": "000300"}),  # 兜底：官方源300只，但接口不稳定
+    ]
+    last_err = None
+    for name, fn, kwargs in sources:
+        try:
+            raw = fetch_with_retry(fn, **kwargs)
+            df = _normalize_cons(raw)
+            if len(df) < 200:
+                # 接口偶尔会返回残缺数据（如只有1只），视为失败，切换下一个源
+                raise ValueError(f"数据不完整，仅 {len(df)} 只")
+            print(f"[OK] 成分股列表（{name}源）: {len(df)} 只，已保存 data/stock_list.csv", flush=True)
+            df.to_csv(os.path.join(DATA_DIR, "stock_list.csv"), index=False, encoding="utf-8-sig")
+            return df
+        except Exception as e:
+            last_err = e
+            print(f"   [{name}源失败] {type(e).__name__}，自动切换下一个源...", flush=True)
+    raise RuntimeError(f"所有成分股数据源都失败了，请检查网络。最后一个错误: {last_err}")
 
 
 def fetch_daily(codes) -> pd.DataFrame:
