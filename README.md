@@ -44,6 +44,7 @@ quant-beginner/
 ├── setup_schedule.bat        ← 一键注册每日自动任务（双击即可）
 ├── selftest.py               ← 一键自检（环境/数据/模块全查一遍，换电脑后必跑）
 ├── go_live_check.py          ← 实盘上线检查（GO/NO-GO 判定，缺什么一目了然）
+├── experiment.py             ← 参数敏感性实验（过拟合预警：扫描持仓数×换仓频率）
 ├── docs/
 │   ├── 使用手册.md           ← 📖 从这读起：完整操作说明（日常/FAQ/上线流程）
 │   └── QMT接入指南.md        ← 阶段3：对接券商QMT自动下单的操作指南
@@ -174,6 +175,8 @@ schtasks /Change /TN AIQuantDaily /ST 17:00   :: 改时间
 **告警通知**（`notify.py`）：每日流水线失败、风控熔断/清仓触发时会自动记录到 `output\alerts.log` 并在控制台提示。想收到邮件/桌面气泡，在 `notify.py` 顶部配置即可；可随时运行 `python notify.py` 自测。
 
 **可视化看板**（`dashboard.py`）：把模拟盘净值、今日信号、持仓、信号评估、告警汇总成一个网页（`output\dashboard.html`）。运行 `python dashboard.py` 生成并打开浏览器，`run_daily` 每次也会自动更新看板。
+
+**参数敏感性实验**（`experiment.py`）：一键扫描「持仓数 × 换仓频率」6 种组合，看收益/回撤对参数敏不敏感（过拟合预警）。实测结论：当前策略对参数**高度敏感**（最好与最差年化差 55%），实盘前务必谨慎——这也是学习量化的核心一课。
 
 ---
 
