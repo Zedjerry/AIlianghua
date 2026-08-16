@@ -114,7 +114,10 @@ def main():
         if not args.mini_path or not args.account:
             raise SystemExit("实盘模式需要 --mini-path 和 --account 参数")
         broker = QMTBroker(args.mini_path, args.account)
-        broker.connect()
+        # 断线自动重连（connection.py，指数退避重试）
+        from connection import with_retry
+        with_retry(broker.connect, retries=3, base_delay=2,
+                   on_retry=lambda a, r, d, e: print(f"   [重连] 第{a}次失败，{d}秒后重试..."))
         holdings = broker.get_positions()
         cash = broker.get_cash()
         print(f"[实盘模式] 当前持仓 {len(holdings)} 只, 可用资金 {cash:,.0f} 元")

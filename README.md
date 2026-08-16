@@ -37,6 +37,8 @@ quant-beginner/
 ├── trade_qmt.py              ← 阶段3：QMT 自动下单（预览模式可先跑，--live 接实盘）
 ├── notify.py                 ← 告警模块（流水线失败/风控触发时提醒，支持控制台/文件/邮件/气泡）
 ├── dashboard.py              ← 可视化看板（模拟盘/信号/评估/告警汇总成一个网页）
+├── connection.py             ← 断线重连工具（指数退避自动重试，实盘连接用）
+├── setup_schedule.bat        ← 一键注册每日自动任务（双击即可）
 ├── docs/
 │   └── QMT接入指南.md        ← 阶段3：对接券商QMT自动下单的操作指南
 ├── data/                    ← ① 生成的原始数据（自动创建）
@@ -135,15 +137,13 @@ python run_daily.py
 
 **挂到 Windows 计划任务实现全自动**（推荐，一劳永逸）：
 
-```bat
-schtasks /Create /TN "AIQuantDaily" /TR "\"D:\Python\python.exe\" \"D:\测试\quant-beginner\run_daily.py\"" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 16:30 /F
-```
+**双击 `setup_schedule.bat`** —— 一键注册「工作日 16:40 自动运行 run_daily.py」的任务（名称为 AIQuantDaily）。
 
-（如果你的 python 不在 `D:\Python`，先运行 `where python` 查实际路径后替换。）
-想改时间/删除任务：
+管理命令：
 ```bat
-schtasks /Change /TN "AIQuantDaily" /ST 17:00
-schtasks /Delete /TN "AIQuantDaily" /F
+schtasks /Query /TN AIQuantDaily        :: 查看任务
+schtasks /Delete /TN AIQuantDaily /F    :: 删除任务
+schtasks /Change /TN AIQuantDaily /ST 17:00   :: 改时间
 ```
 
 > 也可以手动操作：开始菜单搜「任务计划程序」→ 创建基本任务 → 每周工作日触发 → 启动程序选 python 和 `run_daily.py`。
