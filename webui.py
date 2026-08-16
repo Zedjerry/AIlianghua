@@ -264,11 +264,16 @@ def gen_kline_png(code: str, days: int, out_name: str) -> bool:
     style = mpf.make_mpf_style(base_mpf_style="nightclouds", marketcolors=mc,
                                gridstyle=":", gridcolor="#1f2a44",
                                facecolor="#0b101d", figcolor="#0b101d")
-    fig, _ = mpf.plot(d, type="candle", style=style, volume=True,
-                      mav=(5, 20, 60), figsize=(12, 7),
-                      title=f"{code} 日K线（近{days}个交易日）",
-                      ylabel="价格", ylabel_lower="成交量",
-                      returnfig=True)
+    fig, axes = mpf.plot(d, type="candle", style=style, volume=True,
+                         mav=(5, 20, 60), figsize=(12, 7),
+                         title=f"{code} 日K线（近{days}个交易日）",
+                         ylabel="价格（元）", ylabel_lower="成交量（股）",
+                         returnfig=True)
+    # X轴: 中文年月 + 水平排列
+    import matplotlib.dates as mdates
+    for a in axes:
+        a.xaxis.set_major_formatter(mdates.DateFormatter("%Y年%m月"))
+        plt.setp(a.get_xticklabels(), rotation=0)
     fig.savefig(os.path.join(OUTPUT_DIR, out_name), dpi=110, bbox_inches="tight")
     plt.close(fig)
     return True

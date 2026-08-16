@@ -119,14 +119,16 @@ def main():
         print("  结论: 多数时期无效，策略可能只适合特定行情，不建议实盘")
 
     # ---------- 图表 ----------
-    fig, ax = plt.subplots(figsize=(11, 4.5))
-    colors = ["#27ae60" if v > 0 else "#c0392b" for v in rep["IC"]]
+    fig, ax = plt.subplots(figsize=(13, 4.5))
+    colors = ["#ef4444" if v > 0 else "#10b981" for v in rep["IC"]]
     ax.bar(range(len(rep)), rep["IC"], color=colors, label="IC")
-    ax.axhline(0, color="gray", linewidth=0.8)
+    ax.axhline(0, color="#7d8aa3", linewidth=0.8)
     ax.set_xticks(range(len(rep)))
-    ax.set_xticklabels([r.split(" ~ ")[0] for r in rep["评估期"]], rotation=45, fontsize=7)
-    ax.set_title("滚动样本外 IC（每段约半年，模型只用段前数据训练）")
-    ax.set_ylabel("IC"); ax.grid(axis="y", alpha=0.3)
+    ax.set_xticklabels([f"{s[:4]}年{int(s[5:7])}月" for s in rep["评估期"]],
+                       rotation=0, fontsize=8)
+    ax.set_title("滚动样本外 IC（每段约半年，模型只用段前数据训练）", color="#e2e8f0")
+    ax.set_ylabel("IC（预测与未来5日收益的相关系数）", fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
     plt.tight_layout()
     fig.savefig(os.path.join(OUTPUT_DIR, "walkforward_chart.png"), dpi=120)
     print(f"\n[OK] 明细表: {os.path.join(OUTPUT_DIR, 'walkforward_report.csv')}")

@@ -46,6 +46,30 @@ plt.rcParams.update({
 UP = "#ef4444"    # A股: 涨=红
 DOWN = "#10b981"  # A股: 跌=绿
 
+
+# ---------- 坐标轴工具 ----------
+
+def _idx_date_axis(ax, dates, n_ticks=6):
+    """位置型X轴: 稀疏刻度 + 中文年月(如 2026年6月) + 水平排列"""
+    n = len(dates)
+    if n <= 1:
+        return
+    step = max(1, (n - 1) // (n_ticks - 1))
+    pos = list(range(0, n, step))
+    labels = [f"{str(dates[i])[:4]}年{int(str(dates[i])[5:7])}月" for i in pos]
+    ax.set_xticks(pos)
+    ax.set_xticklabels(labels, rotation=0, ha="center")
+
+
+def _dt_date_axis(ax, n_ticks=6):
+    """时间型X轴: 中文年月 + 水平排列（用于折线图）"""
+    import matplotlib.dates as mdates
+    xmin, xmax = ax.get_xlim()
+    months = max(1, int((xmax - xmin) / 30.44 / max(1, (n_ticks - 1))))
+    ax.xaxis.set_major_locator(mdates.MonthLocator(interval=months))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y年%m月"))
+    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
+
 DATA_DIR = "data"
 OUTPUT_DIR = "output"
 HTML_FILE = os.path.join(OUTPUT_DIR, "dashboard.html")
@@ -89,33 +113,37 @@ def chart_nav():
     nav["nav"] = nav["equity"].astype(float) / nav["equity"].astype(float).iloc[0]
     idx = safe_read(os.path.join(DATA_DIR, "index_000300.csv"))
     fig, ax = plt.subplots(figsize=(10, 4.5))
-    ax.plot(nav["date"], nav["nav"], label="模拟盘", linewidth=1.8, color="#3b82f6")
+    ax.plot(pd.to_datetime(nav["date"]), nav["nav"], label="模拟盘", linewidth=1.8, color="#3b82f6")
     if idx is not None:
         idx["date"] = pd.to_datetime(idx["date"]).dt.strftime("%Y-%m-%d")
         bench = idx[idx["date"].isin(nav["date"])].reset_index(drop=True)
         if not bench.empty:
             bench["bnav"] = bench["close"] / bench["close"].iloc[0]
-            ax.plot(bench["date"], bench["bnav"], label="沪深300", linewidth=1.4, alpha=0.75, color="#8b5cf6")
+            ax.plot(pd.to_datetime(bench["date"]), bench["bnav"], label="沪深300", linewidth=1.4, alpha=0.75, color="#8b5cf6")
     ax.set_title("模拟盘净值 vs 沪深300", color="#e2e8f0")
-    ax.set_ylabel("净值（起点=1）"); ax.legend(); ax.grid(alpha=0.3)
-    plt.xticks(rotation=45, fontsize=8); plt.tight_layout()
+    ax.set_ylabel("净值（起点=1，1.0=初始资金）", fontsize=11)
+    ax.legend(); ax.grid(alpha=0.3)
+    _dt_date_axis(ax)
+    plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "dashboard_nav.png")
     fig.savefig(path, dpi=120); plt.close(fig)
     return path
 
 
 def chart_excess():
-    """信号超额收益柱状图"""
+    """信号超额收益柱状图（百分比）"""
     ev = safe_read(os.path.join(OUTPUT_DIR, "signal_evaluation.csv"))
     if ev is None or ev.empty:
         return None
     fig, ax = plt.subplots(figsize=(10, 3.6))
     colors = [DOWN if x < 0 else UP for x in ev["超额收益"]]  # A股: 红涨绿跌
-    ax.bar(ev["date"], ev["超额收益"], color=colors)
+    ax.bar(range(len(ev)), ev["超额收益"] * 100, color=colors)  # 转为百分数显示
     ax.axhline(0, color="#7d8aa3", linewidth=0.8)
-    ax.set_title("信号超额收益（每期 5 日，vs 沪深300）", color="#e2e8f0")
-    ax.set_ylabel("超额收益"); ax.grid(axis="y", alpha=0.3)
-    plt.xticks(rotation=45, fontsize=8); plt.tight_layout()
+    ax.set_title("信号超额收益（每期 5 日，相对沪深300）", color="#e2e8f0")
+    ax.set_ylabel("超额收益（%）", fontsize=11)
+    ax.grid(axis="y", alpha=0.3)
+    _idx_date_axis(ax, ev["date"])
+    plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "dashboard_excess.png")
     fig.savefig(path, dpi=120); plt.close(fig)
     return path
