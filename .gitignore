@@ -4,3 +4,6 @@ data/
 # Python 缂撳瓨
 __pycache__/
 *.pyc
+
+# 运行产物（每次运行自动重新生成）
+output/
