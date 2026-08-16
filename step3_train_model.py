@@ -63,7 +63,7 @@ def main():
     if not os.path.exists(FEATURES_CSV):
         raise SystemExit("找不到 data/features.csv，请先运行: python step2_build_features.py")
 
-    df = pd.read_csv(FEATURES_CSV)
+    df = pd.read_csv(FEATURES_CSV, dtype={"code": str})
     feature_cols = [c for c in df.columns if c not in META_COLS]
     print(f"读取特征表: {len(df)} 行, {len(feature_cols)} 个特征")
 

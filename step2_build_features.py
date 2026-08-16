@@ -87,7 +87,7 @@ def main():
     if not os.path.exists(os.path.join(DATA_DIR, "stock_daily.csv")):
         raise SystemExit("找不到 data/stock_daily.csv，请先运行: python step1_fetch_data.py")
 
-    raw = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"))
+    raw = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
     print(f"读取原始数据: {len(raw)} 行, {raw['code'].nunique()} 只股票")
 
     df = build_features(raw)

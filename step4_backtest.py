@@ -39,7 +39,7 @@ plt.rcParams["axes.unicode_minus"] = False
 def load_daily_returns(test_dates) -> pd.DataFrame:
     """从原始日线数据计算每只股票每日收益率，只保留测试期"""
     daily = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"),
-                        usecols=["date", "code", "close"])
+                        usecols=["date", "code", "close"], dtype={"code": str})
     daily = daily.sort_values(["code", "date"])
     daily["ret_1"] = daily.groupby("code")["close"].pct_change()  # 当日相对昨日的收益
     return daily[daily["date"].isin(test_dates)]
@@ -123,7 +123,7 @@ def main():
     if not os.path.exists(pred_file):
         raise SystemExit("找不到 output/test_predictions.csv，请先运行: python step3_train_model.py")
 
-    pred = pd.read_csv(pred_file)
+    pred = pd.read_csv(pred_file, dtype={"code": str})
     test_dates = sorted(pred["date"].unique())
     print(f"测试期: {test_dates[0]} ~ {test_dates[-1]}，共 {len(test_dates)} 个交易日")
 
