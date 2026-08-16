@@ -31,6 +31,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+# 复用两个纯逻辑模块: 调仓决策 + 风控（模拟盘与实盘共用）
+from rebalance import compute_orders
+from risk_manager import RiskManager
+
 DATA_DIR = "data"
 OUTPUT_DIR = "output"
 HISTORY_DIR = os.path.join(OUTPUT_DIR, "signal_history")
@@ -41,9 +45,14 @@ plt.rcParams["axes.unicode_minus"] = False
 TOP_K = 20
 COST = 0.002            # 单边交易成本 2‰（佣金+滑点）
 MAX_POSITION_PCT = 0.10  # 风控：单只股票市值不超过总资产的 10%
-MAX_DAILY_LOSS = -0.03   # 风控：单日亏损超过 3% 则当日停止买入
+MAX_DAILY_LOSS = 0.03    # 风控：单日亏损超过 3% 则熔断买入
+MAX_DRAWDOWN = 0.15      # 风控：距高点回撤超过 15% 则清仓避险
 ACCOUNT_FILE = os.path.join(OUTPUT_DIR, "paper_account.json")
 LOG_FILE = os.path.join(OUTPUT_DIR, "paper_trade_log.csv")
+
+# 全局风控实例（规则可在这里调整）
+RM = RiskManager(max_daily_loss=MAX_DAILY_LOSS, max_drawdown=MAX_DRAWDOWN,
+                 max_position_pct=MAX_POSITION_PCT)
 
 
 # ---------- 数据 ----------
@@ -103,63 +112,37 @@ def save_account(acc: dict):
 def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.DataFrame):
     """在 date_str 收盘执行调仓，返回当日的交易记录"""
     trades = []
-    prices = closes.loc[date_str] if date_str in closes.index else pd.Series(dtype=float)
-    pos = acc["positions"]
+    prices_s = closes.loc[date_str] if date_str in closes.index else pd.Series(dtype=float)
+    prices = {c: float(v) for c, v in prices_s.items() if pd.notna(v)}
 
-    # 风控①：上一信号日触发亏损熔断 → 本日只卖不买
-    halted = acc.get("halt", False)
-
-    # 1) 卖出: 已持有但不在新名单
-    for code in list(pos.keys()):
-        if code not in target_codes:
-            price = prices.get(code, np.nan)
-            shares = pos.pop(code)
-            if pd.isna(price):
-                trades.append({"date": date_str, "action": "卖", "code": code,
-                               "shares": shares, "price": None, "note": "无价格，按0回收"})
-                acc["cash"] += 0
-                continue
-            proceeds = shares * price * (1 - COST)
+    # 风控: 清仓模式 → 卖出全部持仓
+    if acc.get("liquidate", False):
+        for code, shares in list(acc["positions"].items()):
+            price = prices.get(code)
+            proceeds = shares * price * (1 - COST) if price else 0.0
             acc["cash"] += proceeds
+            acc["positions"].pop(code)
             trades.append({"date": date_str, "action": "卖", "code": code,
-                           "shares": shares, "price": round(float(price), 2),
-                           "amount": round(float(proceeds), 2), "note": ""})
+                           "shares": shares, "price": round(float(price), 2) if price else None,
+                           "amount": round(float(proceeds), 2), "note": "清仓避险"})
+        acc["last_date"] = date_str
+        return trades
 
-    # 2) 买入: 名单内且未持有（等权配置）
-    if not halted:
-        equity = acc["cash"] + sum(pos.get(c, 0) * (prices.get(c, 0)) for c in pos)
-        target_value = equity / TOP_K
-        for code in target_codes:
-            if code in pos:
-                continue
-            price = prices.get(code, np.nan)
-            if pd.isna(price):
-                trades.append({"date": date_str, "action": "买", "code": code,
-                               "shares": 0, "price": None, "amount": 0, "note": "当日无价格(停牌/未上市)，跳过"})
-                continue
-            # 风控②：单只市值上限
-            budget = min(target_value, equity * MAX_POSITION_PCT)
-            shares = int(budget / price / 100) * 100  # A股按手(100股)交易
-            if shares <= 0:
-                trades.append({"date": date_str, "action": "买", "code": code,
-                               "shares": 0, "price": round(float(price), 2),
-                               "amount": 0, "note": "资金不足一手，跳过"})
-                continue
-            cost = shares * price * (1 + COST)
-            if cost > acc["cash"]:
-                shares = int(acc["cash"] / (price * (1 + COST)) / 100) * 100
-                if shares <= 0:
-                    trades.append({"date": date_str, "action": "买", "code": code,
-                                   "shares": 0, "price": round(float(price), 2),
-                                   "amount": 0, "note": "现金不足一手，跳过"})
-                    continue
-                cost = shares * price * (1 + COST)
-            acc["cash"] -= cost
-            pos[code] = pos.get(code, 0) + shares
-            trades.append({"date": date_str, "action": "买", "code": code,
-                           "shares": shares, "price": round(float(price), 2),
-                           "amount": round(float(cost), 2), "note": ""})
-
+    # 正常调仓（含"熔断时只卖不买"）: 决策逻辑全部在 rebalance.py 纯函数里
+    res = compute_orders(
+        acc["positions"], target_codes, acc["cash"], prices,
+        top_k=TOP_K, cost=COST, max_position_pct=MAX_POSITION_PCT,
+        allow_buy=not acc.get("halt", False),
+    )
+    acc["positions"] = res.positions
+    acc["cash"] = res.cash
+    for o in res.orders:
+        amount = 0.0
+        if o.shares and o.price:
+            amount = o.shares * o.price * (1 + COST) if o.action == "买" else o.shares * o.price * (1 - COST)
+        trades.append({"date": date_str, "action": o.action, "code": o.code,
+                       "shares": o.shares, "price": round(o.price, 2) if o.price else None,
+                       "amount": round(float(amount), 2), "note": o.note})
     acc["last_date"] = date_str
     return trades
 
@@ -194,21 +177,28 @@ def main():
 
     log_rows = []
     prev_equity = acc.get("start_capital")
+    peak_equity = acc.get("peak_equity", acc.get("start_capital"))
     acc["halt"] = False
+    acc["liquidate"] = False
     for d in dates:
         target = load_signal(d)
         trades = execute_trades(acc, d, target, closes)
         mark_equity(acc, d, closes)
-        # 风控②：本信号日亏损超限 → 下一信号日只卖不买
-        daily_ret = acc["equity"] / prev_equity - 1 if prev_equity else 0
-        acc["halt"] = bool(daily_ret < MAX_DAILY_LOSS)  # 转成 Python bool，JSON 才可序列化
+        # 风控判定（risk_manager 纯函数）: 更新回撤跟踪 + 熔断/清仓开关
+        peak_equity = max(peak_equity, acc["equity"])
+        acc["peak_equity"] = peak_equity
+        decisions = RM.check(acc["equity"], prev_equity, peak_equity, acc["cash"])
+        acc["halt"] = "halt_buy" in decisions
+        acc["liquidate"] = "liquidate" in decisions
         prev_equity = acc["equity"]
         for t in trades:
             log_rows.append({**t, "equity": acc["equity"]})
         # 每日净值流水
         note = f"账户净值 {acc['equity']}"
         if acc["halt"]:
-            note += " | 触发亏损熔断，下期只卖不买"
+            note += " | 触发买入熔断(只卖不买)"
+        if acc["liquidate"]:
+            note += " | 触发回撤清仓"
         log_rows.append({"date": d, "action": "净值", "code": "", "shares": "",
                          "price": "", "amount": "", "equity": acc["equity"],
                          "note": note})
