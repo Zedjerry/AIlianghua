@@ -216,9 +216,10 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
    <div id="minemsg" class="msg"></div>
    <div class="kimg"><pre id="minelog" style="max-height:260px;margin:0">（训练日志将显示在这里，进度见顶部任务栏）</pre></div>
   </div>
-  <div class="panel"><h2>已挖公式（可一键应用）</h2>
+  <div class="panel"><h2>已挖公式（可一键应用 / AI解读）</h2>
    <table><thead><tr><th>文件</th><th>标的</th><th>分数</th><th>公式</th><th></th></tr></thead>
    <tbody id="formulabody"></tbody></table>
+   <div id="mineai" style="margin-top:10px;font-size:13px;line-height:1.9;display:none"></div>
    <div style="margin-top:8px;font-size:12px;color:var(--dim)">应用公式后，需手动重训模型看横截面 IC：<code>python step2_build_features.py && python step3_train_model.py</code></div>
   </div>
 </div>
@@ -405,9 +406,27 @@ async function loadFormulas(){
  const rows=await get('/api/formulas');
  document.getElementById('formulabody').innerHTML=rows.map(r=>
   `<tr><td>${r.file}</td><td>${r.symbol}</td><td>${r.score}</td>
-   <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.decoded}">${r.decoded}</td>
-   <td><button class="btn" onclick="applyFormula('${r.file}')">应用</button></td></tr>`).join('')
+   <td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.decoded}">${r.decoded}</td>
+   <td><button class="btn" style="margin-right:4px" onclick="applyFormula('${r.file}')">应用</button>
+       <button class="btn ghost" onclick="aiAnalyze('${r.file}')">AI解读</button></td></tr>`).join('')
   || '<tr><td colspan="5" class="empty">还没有挖出的公式</td></tr>';
+}
+async function aiAnalyze(file){
+ const box=document.getElementById('mineai');
+ box.style.display='block'; box.innerHTML='<span style="color:var(--accent)">AI 解读中（约5~10秒）...</span>';
+ const r=await fetch('/api/mine_analysis',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({file})});
+ const j=await r.json();
+ if(!j.ok){box.innerHTML='<span style="color:var(--up)">'+j.msg+'</span>';return;}
+ let html='<h3 style="margin:6px 0;font-size:14px">AI 解读: '+j.result.symbol+'（分数 '+j.result.score+'）</h3>';
+ try{const a=JSON.parse(j.result.analysis);
+   html+=`<b>公式逻辑:</b><br>${(a.step_interpret||'').replace(/\n/g,'<br>')}<br><br>
+          <b>训练质量:</b><br>${(a.quality||'').replace(/\n/g,'<br>')}<br><br>
+          <b>应用建议:</b><br>${(a.usage||'').replace(/\n/g,'<br>')}<br><br>
+          <b>风险提示:</b><br>${(a.risks||'').replace(/\n/g,'<br>')}`;
+ }catch(e){html+=j.result.analysis;}
+ html+='<div style="margin-top:8px;font-size:11px;color:var(--dim)">'+j.result.decoded+'</div>';
+ box.innerHTML=html;
 }
 async function applyFormula(file){
  if(!confirm('应用公式 '+file+' 到全市场？完成后需手动重训模型。'))return;

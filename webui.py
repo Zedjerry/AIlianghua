@@ -437,6 +437,22 @@ def api_apply_formula():
     return jsonify({"ok": True, "msg": f"已启动应用公式 {fname}（完成后请手动重训: step2+step3）"})
 
 
+@app.route("/api/mine_analysis", methods=["POST"])
+def api_mine_analysis():
+    """AI 解读挖出的公式（LLM，约5~10秒）"""
+    data = request.get_json(silent=True) or {}
+    fname = str(data.get("file", ""))
+    fpath = os.path.join(BASE_DIR, "formulas", fname)
+    if not fname.endswith(".json") or not os.path.exists(fpath):
+        return jsonify({"ok": False, "msg": "公式文件不存在"})
+    try:
+        import mine_analysis
+        result = mine_analysis.run_analysis(fpath)
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
+
+
 @app.route("/api/run_daily", methods=["POST"])
 def api_run_daily():
     if TASK["running"]:
