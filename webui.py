@@ -710,10 +710,22 @@ setInterval(refresh, 20000);  // 每20秒自动刷新
 
 def main():
     import argparse
+    import threading
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--open", action="store_true", help="启动后自动打开浏览器")
     args = parser.parse_args()
-    print(f"AI 量化 UI 已启动: http://127.0.0.1:{args.port}", flush=True)
+    if args.open:
+        def _open_browser():
+            import time
+            import webbrowser
+            time.sleep(2)  # 等服务起来
+            try:
+                webbrowser.open(f"http://127.0.0.1:{args.port}")
+            except Exception:
+                pass
+        threading.Thread(target=_open_browser, daemon=True).start()
+    print(f"AI 量化系统已启动: http://127.0.0.1:{args.port}", flush=True)
     app.run(host="127.0.0.1", port=args.port, threaded=True)
 
 
