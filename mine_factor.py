@@ -8,7 +8,7 @@ mine_factor.py — 用 AlphaMaster 的 RL 在我们自己的 A 股数据上挖�
 用法:
     python mine_factor.py --symbol 600519 --steps 600      # 快速验证（约几分钟）
     python mine_factor.py --symbol 600519 --steps 9000     # 完整挖掘（CPU 上可能数小时）
-    python mine_factor.py --file "D:\...\000001_daily.parquet" --steps 300   # 直接用你已有的旧数据挖
+    python mine_factor.py --file "D:/.../000001_daily.parquet" --steps 300   # 直接用你已有的旧数据挖
     python mine_factor.py --symbol 000001 --steps 600 --from-scratch
 
 输出:
@@ -28,7 +28,7 @@ FORMULA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "formulas
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbol", default="600519", help="股票代码（用默认数据目录时）")
+    parser.add_argument("--symbol", default=None, help="股票代码（不指定时从数据文件名解析）")
     parser.add_argument("--file", default=None,
                         help="直接指定 parquet 数据文件（优先于 --symbol）")
     parser.add_argument("--steps", type=int, default=600, help="RL 训练步数（正式用 9000）")
@@ -48,8 +48,13 @@ def main():
 
     if args.file:
         data_file = args.file
+        # 标的从文件名解析: "000001_daily.parquet" -> "000001"
+        symbol = os.path.basename(data_file).rsplit("_", 1)[0]
+        if args.symbol and args.symbol != symbol:
+            print(f"[提示] --symbol 与文件名不一致，以文件名标的为准: {symbol}", flush=True)
     else:
-        data_file = os.path.join(ALPHA_WORK, "data_a", f"{args.symbol}_D1.parquet")
+        symbol = args.symbol or "600519"
+        data_file = os.path.join(ALPHA_WORK, "data_a", f"{symbol}_D1.parquet")
     if not os.path.exists(data_file):
         raise SystemExit(f"缺少数据: {data_file}，请先运行 export_alpha_data.py 或指定 --file")
 
@@ -59,9 +64,9 @@ def main():
         sys.exit(1)
 
     # 复制挖出的公式到 quant-beginner/formulas/
-    src = os.path.join(ALPHA_WORK, "strategies", f"best_{args.symbol}.json")
+    src = os.path.join(ALPHA_WORK, "strategies", f"best_{symbol}.json")
     if os.path.exists(src):
-        dst = os.path.join(FORMULA_DIR, f"{args.symbol}_formula.json")
+        dst = os.path.join(FORMULA_DIR, f"{symbol}_formula.json")
         shutil.copy2(src, dst)
         with open(dst, "r", encoding="utf-8") as f:
             spec = json.load(f)

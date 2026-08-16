@@ -1,0 +1,20 @@
+{
+  "vocab_version": "v9217a2c0d91a",
+  "symbol": "000001",
+  "timeframe": "D1",
+  "data_file": "D:\\量化\\数据\\A股数据 (1)\\parquet\\stocks\\000001_daily.parquet",
+  "mode": "parquet_file",
+  "formula": [
+    43,
+    55,
+    75,
+    38,
+    97,
+    75,
+    72,
+    76
+  ],
+  "formula_decoded": "CMF_20 -> SUPERTREND_DIR -> DELAY1 -> PARKINSON_VOL -> TS_MIN_20 -> DELAY1 -> GATE -> MAX3",
+  "best_score": 1.0292623043060303,
+  "train_steps": 300
+}
