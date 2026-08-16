@@ -39,12 +39,14 @@ OUTPUT = os.path.join(DATA_DIR, "extra_factors.csv")
 
 
 def is_extra_fresh() -> bool:
-    """额外因子数据是否与行情同步（同步则跳过重算）"""
+    """额外因子数据是否与行情同步（日期和股票数都要一致，否则重算）"""
     if not os.path.exists(OUTPUT) or not os.path.exists(os.path.join(DATA_DIR, "stock_daily.csv")):
         return False
-    stock_max = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), usecols=["date"])["date"].max()
-    extra_max = pd.read_csv(OUTPUT, usecols=["date"])["date"].max()
-    return stock_max == extra_max
+    stock = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), usecols=["date", "code"], dtype={"code": str})
+    extra = pd.read_csv(OUTPUT, usecols=["date", "code"], dtype={"code": str})
+    same_date = stock["date"].max() == extra["date"].max()
+    same_codes = stock["code"].nunique() == extra["code"].nunique()
+    return same_date and same_codes
 
 
 # ---------- ① 北向资金（市场级） ----------
