@@ -46,14 +46,15 @@ def is_data_fresh() -> bool:
 
 
 def get_daily():
-    """获取最新行情：数据新鲜就复用本地，否则重新下载"""
+    """获取最新行情：数据新鲜就复用本地，否则重新下载（按本地股票池，全市场4272只）"""
+    # 始终使用本地股票池（扩容后为全市场；不再重新拉沪深300成分股覆盖）
+    stock_list = pd.read_csv(os.path.join(DATA_DIR, "stock_list.csv"), dtype={"code": str})
     if is_data_fresh():
         print("① 行情数据已是最新（2天内），跳过下载（交易日新数据会自动更新）", flush=True)
-        stock_list = pd.read_csv(os.path.join(DATA_DIR, "stock_list.csv"), dtype={"code": str})
         daily = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
         return stock_list, daily
-    print("① 下载最新行情数据（约2~5分钟）...", flush=True)
-    stock_list = s1.fetch_stock_list()
+    n = len(stock_list)
+    print(f"① 下载最新行情数据（{n} 只，全市场约30-50分钟，逐只进度）...", flush=True)
     daily = s1.fetch_daily(stock_list["code"].tolist())
     return stock_list, daily
 
