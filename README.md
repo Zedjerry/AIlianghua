@@ -23,13 +23,15 @@
 quant-beginner/
 ├── README.md                ← 你正在看的这份说明
 ├── requirements.txt         ← 依赖清单
-├── run_all.py               ← 一键跑完 1~4 步
+├── run_all.py               ← 一键跑完 1~4 步（学习流程）
+├── run_daily.py             ← 每日自动运行 5→6→7（日常化流水线，可挂计划任务）
 ├── step1_fetch_data.py      ← ① 下载数据
 ├── step2_build_features.py  ← ② 算特征
 ├── step3_train_model.py     ← ③ 训练模型
 ├── step4_backtest.py        ← ④ 回测
 ├── step5_generate_signals.py ← ⑤ 每日交易信号（自动量化的第一步，见下方专节）
 ├── step6_track_signals.py    ← ⑥ 信号存档与质量评估（阶段2 模拟盘验证工具）
+├── step7_paper_trade.py      ← ⑦ 模拟盘自动执行引擎（阶段3 下单逻辑预演）
 ├── docs/
 │   └── QMT接入指南.md        ← 阶段3：对接券商QMT自动下单的操作指南
 ├── data/                    ← ① 生成的原始数据（自动创建）
@@ -113,6 +115,33 @@ python step5_generate_signals.py
 4. 这之后才考虑对接券商接口（QMT）自动下单。
 
 ⚠️ **step5 只生成信号、不自动下单**。自动下单属于阶段3（对接券商 QMT/PTrade 接口），需要单独开通权限并做好风控。
+
+---
+
+## 🤖 每日自动化（阶段2 日常化，可选）
+
+**用法**：每天收盘后运行一次，自动完成「生成信号 → 存档评估 → 模拟盘执行」：
+
+```bash
+python run_daily.py
+```
+
+日志保存在 `output\daily_logs\`。
+
+**挂到 Windows 计划任务实现全自动**（推荐，一劳永逸）：
+
+```bat
+schtasks /Create /TN "AIQuantDaily" /TR "\"D:\Python\python.exe\" \"D:\测试\quant-beginner\run_daily.py\"" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 16:30 /F
+```
+
+（如果你的 python 不在 `D:\Python`，先运行 `where python` 查实际路径后替换。）
+想改时间/删除任务：
+```bat
+schtasks /Change /TN "AIQuantDaily" /ST 17:00
+schtasks /Delete /TN "AIQuantDaily" /F
+```
+
+> 也可以手动操作：开始菜单搜「任务计划程序」→ 创建基本任务 → 每周工作日触发 → 启动程序选 python 和 `run_daily.py`。
 
 ---
 
