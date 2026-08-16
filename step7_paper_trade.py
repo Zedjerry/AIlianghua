@@ -110,6 +110,28 @@ def save_account(acc: dict):
 
 # ---------- 交易 ----------
 
+def compute_limits(closes: pd.DataFrame, date_str: str, codes) -> tuple:
+    """识别当日涨停/跌停的股票。主板 ±10%，创业板/科创板 ±20%（简化规则，未含ST的5%）"""
+    limit_up, limit_down = set(), set()
+    if date_str not in closes.index:
+        return limit_up, limit_down
+    pos = closes.index.get_loc(date_str)
+    if pos == 0:
+        return limit_up, limit_down
+    prev_date = closes.index[pos - 1]
+    for code in codes:
+        now, prev = closes.loc[date_str, code], closes.loc[prev_date, code]
+        if pd.isna(now) or pd.isna(prev) or prev <= 0:
+            continue
+        ret = now / prev - 1
+        limit = 0.20 if code.startswith(("300", "301", "688", "689")) else 0.10
+        if ret >= limit - 0.002:      # 接近涨停价（留0.2%容差）
+            limit_up.add(code)
+        elif ret <= -(limit - 0.002): # 接近跌停价
+            limit_down.add(code)
+    return limit_up, limit_down
+
+
 def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.DataFrame):
     """在 date_str 收盘执行调仓，返回当日的交易记录"""
     trades = []
@@ -129,11 +151,16 @@ def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.Data
         acc["last_date"] = date_str
         return trades
 
+    # 涨跌停识别（模拟真实交易的成交限制）
+    all_codes = set(acc["positions"]) | set(target_codes)
+    limit_up, limit_down = compute_limits(closes, date_str, all_codes)
+
     # 正常调仓（含"熔断时只卖不买"）: 决策逻辑全部在 rebalance.py 纯函数里
     res = compute_orders(
         acc["positions"], target_codes, acc["cash"], prices,
         top_k=TOP_K, cost=COST, max_position_pct=MAX_POSITION_PCT,
         allow_buy=not acc.get("halt", False),
+        block_buy=limit_up, block_sell=limit_down,
     )
     acc["positions"] = res.positions
     acc["cash"] = res.cash

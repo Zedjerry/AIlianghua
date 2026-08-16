@@ -36,7 +36,8 @@ class RebalanceResult:
 def compute_orders(holdings: dict, target_codes: list, cash: float,
                    prices: dict, top_k: int = 20, cost: float = 0.002,
                    max_position_pct: float = 0.10,
-                   allow_buy: bool = True) -> RebalanceResult:
+                   allow_buy: bool = True,
+                   block_buy: set = None, block_sell: set = None) -> RebalanceResult:
     """
     纯函数：给定当前状态，算出本次调仓的所有订单。
 
@@ -49,9 +50,13 @@ def compute_orders(holdings: dict, target_codes: list, cash: float,
         cost:          单边交易成本比例
         max_position_pct: 单票市值上限占总资产比例
         allow_buy:     False 时只卖不买（风控熔断模式）
+        block_buy:     涨停/停牌无法买入的代码集合（默认空）
+        block_sell:    跌停/停牌无法卖出的代码集合（默认空）
     返回:
         RebalanceResult(orders, positions, cash)
     """
+    block_buy = block_buy or set()
+    block_sell = block_sell or set()
     result = RebalanceResult(positions=dict(holdings), cash=cash)
 
     # ---------- 1) 卖出: 已持有但不在目标名单 ----------
@@ -61,6 +66,10 @@ def compute_orders(holdings: dict, target_codes: list, cash: float,
             shares = result.positions.pop(code)
             if price is None:
                 result.orders.append(Order("卖", code, shares, 0.0, "无价格，按0回收"))
+                continue
+            if code in block_sell:
+                result.positions[code] = shares          # 卖不掉，先留着
+                result.orders.append(Order("卖", code, 0, price, "跌停无法卖出，下期再试"))
                 continue
             result.cash += shares * price * (1 - cost)
             result.orders.append(Order("卖", code, shares, price, "退出名单"))
@@ -79,6 +88,9 @@ def compute_orders(holdings: dict, target_codes: list, cash: float,
         price = prices.get(code)
         if price is None:
             result.orders.append(Order("买", code, 0, 0.0, "当日无价格(停牌/未上市)，跳过"))
+            continue
+        if code in block_buy:
+            result.orders.append(Order("买", code, 0, price, "涨停无法买入，下期再试"))
             continue
 
         # 风控: 单票市值上限（目标等权金额与上限取小者）
@@ -124,7 +136,18 @@ def _demo():
     assert res.positions.get("000001") == 1000
     assert res.positions.get("300750") == 200
     assert "600519" not in res.positions
-    print("\n自测结果: [OK] 通过（名单内的保留、便宜的买入、一手都买不起的跳过）")
+
+    # 涨跌停限制自测: 涨停的买不进、跌停的卖不出
+    res2 = compute_orders({"000001": 1000}, ["000001", "300750"], 100000.0,
+                          {"000001": 11.0, "300750": 180.0},
+                          top_k=3, max_position_pct=0.5, block_buy={"300750"})
+    assert "300750" not in res2.positions, "涨停的股票不应买入"
+    res3 = compute_orders({"000001": 1000}, ["000002"], 100000.0,
+                          {"000001": 11.0, "000002": 5.0},
+                          top_k=3, max_position_pct=0.5, block_sell={"000001"})
+    assert res3.positions.get("000001") == 1000, "跌停的股票不应卖出"
+
+    print("\n自测结果: [OK] 通过（名单内的保留、便宜的买入、一手买不起的跳过、涨跌停受限）")
 
 
 if __name__ == "__main__":
