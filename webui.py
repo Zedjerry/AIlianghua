@@ -359,6 +359,35 @@ def api_top2_kline():
     return jsonify(out)
 
 
+@app.route("/api/pa_analyze")
+def api_pa_analyze():
+    """PA 分析：两阶段 LLM + 决策树闸门（运行约5~10秒）"""
+    code = request.args.get("code", "")
+    try:
+        days = int(request.args.get("days", 120))
+    except ValueError:
+        days = 120
+    if not code:
+        return jsonify({"ok": False, "msg": "缺少 code 参数"})
+    try:
+        import pa_analysis
+        result = pa_analysis.run_analysis(code, days)
+        return jsonify({"ok": True, "result": result})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": f"{type(e).__name__}: {e}"})
+
+
+@app.route("/api/pa_history")
+def api_pa_history():
+    """PA 经验库"""
+    try:
+        with open(os.path.join(OUTPUT_DIR, "pa_experience.json"), "r", encoding="utf-8") as f:
+            rows = json.load(f)
+        return jsonify(list(reversed(rows[-20:])))
+    except Exception:
+        return jsonify([])
+
+
 @app.route("/api/run_daily", methods=["POST"])
 def api_run_daily():
     if TASK["running"]:

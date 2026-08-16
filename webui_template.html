@@ -112,6 +112,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
   <span class="tab" data-p="account" onclick="showPage(this)">模拟盘</span>
   <span class="tab" data-p="eval" onclick="showPage(this)">评估</span>
   <span class="tab" data-p="kline" onclick="showPage(this)">K线</span>
+  <span class="tab" data-p="pa" onclick="showPage(this)">PA分析</span>
   <span class="tab" data-p="alerts" onclick="showPage(this)">告警</span>
 </div>
 
@@ -174,6 +175,27 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
    </div>
    <div id="kmsg" class="msg"></div>
    <div class="kimg"><img id="klineimg" style="display:none"></div>
+  </div>
+</div>
+
+<!-- PA分析 -->
+<div id="pa" class="page">
+  <div class="panel"><h2>PA 智能分析（两阶段 LLM + 决策树闸门 + 经验库）</h2>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <input id="pacode" class="inp" list="stocklist" placeholder="输入股票代码，如 600519">
+    <select id="padays" class="sel">
+     <option value="60">近3月</option>
+     <option value="120" selected>近半年</option>
+     <option value="250">近一年</option>
+    </select>
+    <button class="btn" onclick="runPa()" id="pabtn">开始分析</button>
+   </div>
+   <div id="pamsg" class="msg"></div>
+   <div id="paresult" style="font-size:13px;line-height:2"></div>
+  </div>
+  <div class="panel"><h2>经验库（最近分析记录）</h2>
+   <table><thead><tr><th>代码</th><th>日期</th><th>路由结论</th><th>决策</th></tr></thead>
+   <tbody id="pahistory"></tbody></table>
   </div>
 </div>
 
@@ -302,6 +324,39 @@ async function showKline(){
  else{img.style.display='none';msg.textContent=r.msg;}
 }
 document.getElementById('kcode').addEventListener('keydown',e=>{if(e.key==='Enter')showKline();});
+// PA 分析页
+async function runPa(){
+ const raw=document.getElementById('pacode').value.trim();
+ const code=(raw.split(' ')[0]||'').match(/\d{6}/)?.[0]||'';
+ const days=document.getElementById('padays').value;
+ const msg=document.getElementById('pamsg'), btn=document.getElementById('pabtn');
+ if(!code){msg.textContent='请输入6位股票代码';return;}
+ btn.disabled=true; msg.textContent='AI 分析中（约5~10秒）...';
+ const r=await get('/api/pa_analyze?code='+code+'&days='+days);
+ btn.disabled=false;
+ if(!r.ok){msg.textContent=r.msg;return;}
+ msg.textContent='';
+ const x=r.result, el=document.getElementById('paresult');
+ let html=`<b>${x.code} · ${x.date} · 收盘 ${x.close}</b>（近1日 ${x.ret_1d}% · 近5日 ${x.ret_5d}% · 量比 ${x.vol_ratio}）<br>`;
+ html+=`<div style="color:var(--muted);font-size:12px">MA5 ${x.ma5} / MA20 ${x.ma20} / MA60 ${x.ma60} · ATR ${x.atr_pct}% · 距高点 ${x.dd_from_high20}% · 区间位置 ${x.pos_in_20}</div>`;
+ html+=`<br><b>决策树闸门:</b><br>`;
+ for(const [k,v] of Object.entries(x.gates||{})){html+=`&nbsp;&nbsp;${k}: ${v}<br>`;}
+ html+=`<b>路由结论:</b> ${x.path}<br><br>`;
+ if(x.stage1){try{const s1=JSON.parse(x.stage1);
+   html+=`<b>① 结构诊断:</b> ${s1.structure}（质量 ${s1.quality}）· 关键位 ${s1.key_levels}<br><span style="color:var(--muted)">${s1.reason}</span><br>`;}catch(e){html+=`<b>① 诊断:</b> ${x.stage1}<br>`;}}
+ if(x.stage2){try{const s2=JSON.parse(x.stage2);
+   html+=`<br><b>② 交易计划:</b> ${s2.action}<br>&nbsp;&nbsp;入场: ${s2.entry}<br>&nbsp;&nbsp;止损: ${s2.stop}<br>&nbsp;&nbsp;仓位: ${s2.position}<br><span style="color:var(--muted)">风险: ${s2.risk_note}</span>`;}catch(e){html+=`<b>② 决策:</b> ${x.stage2}`;}}
+ html+=`<div style="margin-top:8px;font-size:12px;color:var(--dim)">${x.mode}</div>`;
+ el.innerHTML=html;
+ loadPaHistory();
+}
+async function loadPaHistory(){
+ const rows=await get('/api/pa_history');
+ document.getElementById('pahistory').innerHTML=rows.map(r=>
+  `<tr><td>${r.code}</td><td>${r.date}</td><td>${r.path||''}</td><td style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.stage2||''}</td></tr>`).join('')
+  || '<tr><td colspan="4" class="empty">暂无记录</td></tr>';
+}
+document.getElementById('pacode').addEventListener('keydown',e=>{if(e.key==='Enter')runPa();});
 loadStockList();
 refresh();
 setInterval(refresh, 20000);  // 每20秒自动刷新
