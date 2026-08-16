@@ -276,20 +276,26 @@ def gen_kline_png(code: str, days: int, out_name: str) -> bool:
                          title=f"{code} 日K线（近{days}个交易日）",
                          ylabel="价格（元）", ylabel_lower="成交量（股）",
                          returnfig=True)
-    # mplfinance 绘制时会重置中文字体配置（实测确认），必须在绘制后
-    # 对"所有"文本元素强制指定中文字体，否则中文全是方块
+    # mplfinance 绘制时会重置中文字体配置，且刻度标签在绘制时才生成。
+    # 正确顺序: 先设置日期格式 → 触发绘制生成刻度 → 再对"所有"文本元素强制中文字体
     from matplotlib.font_manager import FontProperties
     fp = FontProperties(family="Microsoft YaHei")
     import matplotlib.dates as mdates
     for a in axes:
         a.xaxis.set_major_formatter(mdates.DateFormatter("%Y年%m月"))
+    # 关键: 先生成刻度标签（这次绘制的输出会丢弃，只用于生成刻度），再设置字体
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        fig.canvas.draw()
+    for a in axes:
         plt.setp(a.get_xticklabels(), rotation=0, fontproperties=fp)
         plt.setp(a.get_yticklabels(), fontproperties=fp)
-        # 覆盖该轴上的全部文本（含 mplfinance 遗留的旧标题等）
-        for t in list(a.texts) + [a.title]:
+        a.xaxis.label.set_fontproperties(fp)   # 轴标签(如 价格/成交量)
+        a.yaxis.label.set_fontproperties(fp)
+        for t in list(a.texts) + [a.title]:    # 轴内其他文本(含遗留标题)
             t.set_fontproperties(fp)
-    # mplfinance 的标题是"图级文本"，在 fig.texts 里（不在坐标轴上），必须单独覆盖
-    for t in fig.texts:
+    for t in fig.texts:                        # 图级文本(mplfinance标题所在)
         if t.get_text().strip():
             t.set_fontproperties(fp)
     legend = axes[0].get_legend()
