@@ -17,6 +17,8 @@ import os
 import subprocess
 import sys
 
+from notify import alert
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "output", "daily_logs")
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -38,8 +40,10 @@ def main():
                 stdout=logf, stderr=subprocess.STDOUT,  # 子进程输出全部进日志文件
             )
             if result.returncode != 0:
+                alert("CRITICAL", f"每日流水线 {step} 运行失败（退出码 {result.returncode}），请查看日志")
                 print(f"[失败] {step} 退出码 {result.returncode}，完整日志: {log_path}", flush=True)
                 sys.exit(1)
+    alert("INFO", "每日流水线全部完成（信号+评估+模拟盘）")
     print(f"[完成] 每日流程全部跑完，日志: {log_path}", flush=True)
 
 

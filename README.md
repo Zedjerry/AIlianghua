@@ -35,6 +35,7 @@ quant-beginner/
 ├── rebalance.py              ← 调仓决策纯函数（模拟盘/实盘共用同一套逻辑）
 ├── risk_manager.py           ← 风控模块（单日亏损熔断/最大回撤清仓/仓位上限）
 ├── trade_qmt.py              ← 阶段3：QMT 自动下单（预览模式可先跑，--live 接实盘）
+├── notify.py                 ← 告警模块（流水线失败/风控触发时提醒，支持控制台/文件/邮件/气泡）
 ├── docs/
 │   └── QMT接入指南.md        ← 阶段3：对接券商QMT自动下单的操作指南
 ├── data/                    ← ① 生成的原始数据（自动创建）
@@ -157,6 +158,8 @@ schtasks /Delete /TN "AIQuantDaily" /F
 2. QMT 权限开通 + 小额试单通过；
 3. 跑 `python trade_qmt.py` 预览，人工核对订单；
 4. 实盘首月用小资金 + 每天人工盯盘，确认无误再逐步放大。
+
+**告警通知**（`notify.py`）：每日流水线失败、风控熔断/清仓触发时会自动记录到 `output\alerts.log` 并在控制台提示。想收到邮件/桌面气泡，在 `notify.py` 顶部配置即可；可随时运行 `python notify.py` 自测。
 
 ---
 

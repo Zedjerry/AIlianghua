@@ -34,6 +34,7 @@ import pandas as pd
 # 复用两个纯逻辑模块: 调仓决策 + 风控（模拟盘与实盘共用）
 from rebalance import compute_orders
 from risk_manager import RiskManager
+from notify import alert
 
 DATA_DIR = "data"
 OUTPUT_DIR = "output"
@@ -191,6 +192,11 @@ def main():
         acc["halt"] = "halt_buy" in decisions
         acc["liquidate"] = "liquidate" in decisions
         prev_equity = acc["equity"]
+        # 风控告警（阶段4）: 触发时主动提醒
+        if acc["halt"]:
+            alert("WARN", f"{d} 触发买入熔断（只卖不买），净值 {acc['equity']}")
+        if acc["liquidate"]:
+            alert("CRITICAL", f"{d} 触发回撤清仓，净值 {acc['equity']}")
         for t in trades:
             log_rows.append({**t, "equity": acc["equity"]})
         # 每日净值流水
