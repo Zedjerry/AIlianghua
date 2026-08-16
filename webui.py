@@ -388,6 +388,55 @@ def api_pa_history():
         return jsonify([])
 
 
+@app.route("/api/mine", methods=["POST"])
+def api_mine():
+    """后台启动 RL 因子挖掘（AlphaMaster 训练控制台）"""
+    if TASK["running"]:
+        return jsonify({"ok": False, "msg": f"已有任务在运行: {TASK['name']}"})
+    data = request.get_json(silent=True) or {}
+    symbol = str(data.get("symbol", "600519"))
+    steps = int(data.get("steps", 600))
+    if not symbol.isdigit() or len(symbol) != 6:
+        return jsonify({"ok": False, "msg": "股票代码格式不对（6位数字）"})
+    run_in_background(["mine_factor.py", "--symbol", symbol, "--steps", str(steps)],
+                      f"mine_{symbol}")
+    return jsonify({"ok": True, "msg": f"已启动挖矿: {symbol} × {steps} 步（进度见任务栏与日志）"})
+
+
+@app.route("/api/formulas")
+def api_formulas():
+    """挖出的公式列表（formulas/ 目录）"""
+    fdir = os.path.join(BASE_DIR, "formulas")
+    rows = []
+    if os.path.isdir(fdir):
+        for f in sorted(os.listdir(fdir)):
+            if f.endswith(".json"):
+                try:
+                    with open(os.path.join(fdir, f), "r", encoding="utf-8") as fp:
+                        spec = json.load(fp)
+                    rows.append({"file": f,
+                                 "symbol": spec.get("symbol", f[:-5]),
+                                 "decoded": spec.get("formula_decoded", "?"),
+                                 "score": round(float(spec.get("best_score", 0)), 3)})
+                except Exception:
+                    pass
+    return jsonify(rows)
+
+
+@app.route("/api/apply_formula", methods=["POST"])
+def api_apply_formula():
+    """一键应用某个公式到全市场（factor_miner → 特征 → 重训）"""
+    if TASK["running"]:
+        return jsonify({"ok": False, "msg": f"已有任务在运行: {TASK['name']}"})
+    data = request.get_json(silent=True) or {}
+    fname = str(data.get("file", ""))
+    fpath = os.path.join(BASE_DIR, "formulas", fname)
+    if not fname.endswith(".json") or not os.path.exists(fpath):
+        return jsonify({"ok": False, "msg": "公式文件不存在"})
+    run_in_background(["factor_miner.py", "--formula", fpath], f"apply_{fname[:-5]}")
+    return jsonify({"ok": True, "msg": f"已启动应用公式 {fname}（完成后请手动重训: step2+step3）"})
+
+
 @app.route("/api/run_daily", methods=["POST"])
 def api_run_daily():
     if TASK["running"]:

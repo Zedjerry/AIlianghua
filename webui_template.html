@@ -113,6 +113,7 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
   <span class="tab" data-p="eval" onclick="showPage(this)">评估</span>
   <span class="tab" data-p="kline" onclick="showPage(this)">K线</span>
   <span class="tab" data-p="pa" onclick="showPage(this)">PA分析</span>
+  <span class="tab" data-p="mine" onclick="showPage(this)">挖矿</span>
   <span class="tab" data-p="alerts" onclick="showPage(this)">告警</span>
 </div>
 
@@ -196,6 +197,29 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
   <div class="panel"><h2>经验库（最近分析记录）</h2>
    <table><thead><tr><th>代码</th><th>日期</th><th>路由结论</th><th>决策</th></tr></thead>
    <tbody id="pahistory"></tbody></table>
+  </div>
+</div>
+
+<!-- 挖矿 -->
+<div id="mine" class="page">
+  <div class="panel"><h2>AlphaMaster 因子挖掘（RL 训练控制台）</h2>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+    <input id="minecode" class="inp" list="stocklist" placeholder="股票代码，如 600519" style="min-width:160px">
+    <select id="minesteps" class="sel">
+     <option value="300">快速(300步)</option>
+     <option value="600" selected>标准(600步)</option>
+     <option value="2000">深入(2000步)</option>
+     <option value="9000">完整(9000步,数小时)</option>
+    </select>
+    <button class="btn" onclick="startMine()">开始挖矿</button>
+   </div>
+   <div id="minemsg" class="msg"></div>
+   <div class="kimg"><pre id="minelog" style="max-height:260px;margin:0">（训练日志将显示在这里，进度见顶部任务栏）</pre></div>
+  </div>
+  <div class="panel"><h2>已挖公式（可一键应用）</h2>
+   <table><thead><tr><th>文件</th><th>标的</th><th>分数</th><th>公式</th><th></th></tr></thead>
+   <tbody id="formulabody"></tbody></table>
+   <div style="margin-top:8px;font-size:12px;color:var(--dim)">应用公式后，需手动重训模型看横截面 IC：<code>python step2_build_features.py && python step3_train_model.py</code></div>
   </div>
 </div>
 
@@ -304,6 +328,9 @@ async function refresh(){
  document.getElementById('navimg').src='/img/dashboard_nav.png?t='+t;
  document.getElementById('excessimg').src='/img/dashboard_excess.png?t='+t;
  document.getElementById('holdimg').src='/img/dashboard_holdings.png?t='+t;
+ // 挖矿页: 公式列表 + 训练日志
+ loadFormulas();
+ pollMineLog();
 }
 // K线页
 async function loadStockList(){
@@ -357,6 +384,37 @@ async function loadPaHistory(){
   || '<tr><td colspan="4" class="empty">暂无记录</td></tr>';
 }
 document.getElementById('pacode').addEventListener('keydown',e=>{if(e.key==='Enter')runPa();});
+// 挖矿页
+async function startMine(){
+ const raw=document.getElementById('minecode').value.trim();
+ const code=(raw.split(' ')[0]||'').match(/\d{6}/)?.[0]||'600519';
+ const steps=document.getElementById('minesteps').value;
+ const r=await fetch('/api/mine',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({symbol:code,steps:parseInt(steps)})});
+ const j=await r.json();
+ document.getElementById('minemsg').textContent=j.msg;
+ if(j.ok){document.getElementById('minelog').textContent='任务已启动，日志将实时更新...';}
+}
+async function pollMineLog(){
+ const tk=await get('/api/task');
+ if(tk.name && tk.name.startsWith('mine_') && tk.log){
+   document.getElementById('minelog').textContent=tk.log||'（暂无日志）';
+ }
+}
+async function loadFormulas(){
+ const rows=await get('/api/formulas');
+ document.getElementById('formulabody').innerHTML=rows.map(r=>
+  `<tr><td>${r.file}</td><td>${r.symbol}</td><td>${r.score}</td>
+   <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.decoded}">${r.decoded}</td>
+   <td><button class="btn" onclick="applyFormula('${r.file}')">应用</button></td></tr>`).join('')
+  || '<tr><td colspan="5" class="empty">还没有挖出的公式</td></tr>';
+}
+async function applyFormula(file){
+ if(!confirm('应用公式 '+file+' 到全市场？完成后需手动重训模型。'))return;
+ const r=await fetch('/api/apply_formula',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({file})});
+ const j=await r.json(); alert(j.msg); refresh();
+}
 loadStockList();
 refresh();
 setInterval(refresh, 20000);  // 每20秒自动刷新
