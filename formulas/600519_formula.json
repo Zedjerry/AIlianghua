@@ -1,0 +1,20 @@
+{
+  "vocab_version": "v9217a2c0d91a",
+  "symbol": "600519",
+  "timeframe": "D1",
+  "data_file": "D:\\测试\\alpha_work\\data_a\\600519_D1.parquet",
+  "mode": "parquet_file",
+  "formula": [
+    56,
+    16,
+    121,
+    8,
+    66,
+    39,
+    72,
+    75
+  ],
+  "formula_decoded": "SAR_DIST -> PV_CORR -> TS_ZSCORE_20 -> VOL_REGIME -> SUB -> YANG_ZHANG_VOL -> GATE -> DELAY1",
+  "best_score": 1.622438907623291,
+  "train_steps": 600
+}

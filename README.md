@@ -204,6 +204,22 @@ python webui.py            # 启动后打开 http://127.0.0.1:8000
 **核心一课**：因子不是越多越好——三个因子全做出来了，但**样本外验证**显示只有资金流真正加分。
 北向和情绪数据保留在 `data/extra_factors.csv`，想实验可在 `step2_build_features.py` 里临时启用。
 
+## 🤖 智能体整合（AlphaMaster 因子挖掘 + PA_Agent 式 LLM 诊断）
+
+**因子挖掘中心接入**（`factor_miner.py` + `mine_factor.py` + `export_alpha_data.py`）：
+- AlphaMaster 的 RL 公式引擎已能在我们的 288 只 A 股上执行因子公式（StackVM + 65 特征）
+- 已在本机数据上实际挖矿（茅台 600519，600 步 RL 搜索，最优验证分 1.62），公式存 `formulas/`
+- 实测三档对比：无因子 IC 0.083 / AAPL移植公式 0.089 / A股挖矿公式 0.076
+  → 教训：AlphaMaster 优化"单票择时"，我们做"横截面选股"，目标口径不同，挖矿公式要按横截面 IC 筛选
+- 当前系统采用移植公式档（IC 最优），新挖公式可随时 `--formula` 切换验证
+
+**LLM 市场诊断层**（`market_diagnosis.py`，吸收 PA_Agent 两阶段决策）：
+- Stage1 市场诊断（趋势/震荡/风险 + 把握度）→ Stage2 交易决策（仓位系数 + 风险提示）
+- 用今日真实数据调用 LLM，输出如"轻仓 0.3，注意控制仓位"
+- Key 配置在 `config_llm.json`（已 gitignore），无 Key 自动降级为规则模式
+
+**配套**：`python market_diagnosis.py`（诊断）、`python mine_factor.py --symbol 600519 --steps 600`（挖矿）
+
 ---
 
 ## 🧪 预期结果（本项目实测参考）
