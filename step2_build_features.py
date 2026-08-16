@@ -81,6 +81,19 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def filter_st(df: pd.DataFrame) -> pd.DataFrame:
+    """剔除 ST 股票（名称含 ST，含 *ST/S*ST）。
+    ST 股有 5% 涨跌幅限制、退市风险，且我们无其涨跌停规则，不适合本策略。"""
+    lst = pd.read_csv(os.path.join(DATA_DIR, "stock_list.csv"), dtype={"code": str})
+    st_codes = set(lst.loc[lst["name"].astype(str).str.contains("ST", case=False, na=False), "code"])
+    if not st_codes:
+        return df
+    n_before = df["code"].nunique()
+    out = df[~df["code"].isin(st_codes)]
+    print(f"[提示] 剔除 ST 股票 {n_before - out['code'].nunique()} 只（名称含ST）")
+    return out
+
+
 def add_rank_features(df: pd.DataFrame) -> pd.DataFrame:
     """横截面排名：每个交易日，把特征在全市场排成百分位(0~1)"""
     for f in RANK_FEATURES:
@@ -123,6 +136,7 @@ def main():
         raise SystemExit("找不到 data/stock_daily.csv，请先运行: python step1_fetch_data.py")
 
     raw = pd.read_csv(os.path.join(DATA_DIR, "stock_daily.csv"), dtype={"code": str})
+    raw = filter_st(raw)   # 剔除 ST 股票
     print(f"读取原始数据: {len(raw)} 行, {raw['code'].nunique()} 只股票")
 
     df = build_features(raw)

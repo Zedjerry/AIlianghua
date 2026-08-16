@@ -37,7 +37,10 @@ RAW_DROP = ["open", "high", "low", "close", "volume", "amount"]  # 与 step2 一
 def is_data_fresh() -> bool:
     """已有行情数据是否够新——够新就跳过下载，让每日运行只要几秒。
     窗口取 2 天: 每个交易日收盘后的数据次日必更新（保证真实数据每天最新），
-    周末两天内不重复下载。"""
+    周末两天内不重复下载。
+    设置环境变量 QUANT_FORCE_FRESH=1 可强制跳过下载（手工重跑信号用）。"""
+    if os.environ.get("QUANT_FORCE_FRESH"):
+        return True
     path = os.path.join(DATA_DIR, "stock_daily.csv")
     if not os.path.exists(path):
         return False
@@ -62,6 +65,7 @@ def get_daily():
 def prepare_features(daily: pd.DataFrame):
     """计算特征（复用 step2 的现成函数）"""
     print("② 计算特征...", flush=True)
+    daily = s2.filter_st(daily)   # 剔除 ST 股票（ST 有5%涨跌停与退市风险）
     df = s2.build_features(daily)
     df = s2.add_rank_features(df)
     df = s2.merge_extra_factors(df)   # 资金流/北向/情绪 额外因子
