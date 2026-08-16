@@ -187,7 +187,7 @@ def mark_equity(acc: dict, date_str: str, closes: pd.DataFrame):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--capital", type=float, default=4000.0, help="初始资金（默认4000元）")
+    parser.add_argument("--capital", type=float, default=10000.0, help="初始资金（默认1万元）")
     parser.add_argument("--topk", type=int, default=None,
                         help="目标持仓数量（默认按资金自动适配：约每1500元买1只，上限20只）")
     args = parser.parse_args()
