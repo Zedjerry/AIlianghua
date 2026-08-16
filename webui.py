@@ -154,6 +154,16 @@ def api_overview():
     return jsonify(ov)
 
 
+@app.route("/api/diagnosis")
+def api_diagnosis():
+    """LLM 市场诊断结果（output/diagnosis.json）"""
+    try:
+        with open(os.path.join(OUTPUT_DIR, "diagnosis.json"), "r", encoding="utf-8") as f:
+            return jsonify(json.load(f))
+    except Exception:
+        return jsonify({"mode": "暂无诊断", "note": "运行每日流程或 python market_diagnosis.py 生成"})
+
+
 @app.route("/api/nav")
 def api_nav():
     """模拟盘净值 vs 沪深300（JSON 数组）"""

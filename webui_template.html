@@ -120,6 +120,9 @@ code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
 <!-- 首页 -->
 <div id="overview" class="page active">
   <div class="cards" id="cards"></div>
+  <div class="panel" id="diagpanel" style="display:none"><h2>AI 市场诊断</h2>
+    <div id="diagbody" style="font-size:13px;line-height:1.9"></div>
+  </div>
   <div class="grid2">
     <div class="panel"><h2>模拟盘净值 vs 沪深300</h2><div class="kimg"><img id="navimg" src="/img/dashboard_nav.png?t=0"></div></div>
     <div class="panel"><h2>信号超额收益</h2><div class="kimg"><img id="excessimg" src="/img/dashboard_excess.png?t=0"></div></div>
@@ -214,6 +217,24 @@ async function refresh(){
  const ov=await get('/api/overview');
  document.getElementById('sigdate').textContent='信号日 '+ov.signal_date;
  loadTop2Kline(ov.signal_date);
+ // AI 市场诊断
+ const diag=await get('/api/diagnosis');
+ const dp=document.getElementById('diagpanel'), db=document.getElementById('diagbody');
+ if(diag && diag.mode && diag.mode!=='暂无诊断'){
+   dp.style.display='block';
+   let html='';
+   if(diag.stage1){
+     try{const s1=JSON.parse(diag.stage1);
+       html+=`<b>市场环境:</b> ${s1.regime||'?'}（把握度 ${s1.confidence??'?'}）<br><span style="color:var(--muted)">${s1.reason||''}</span><br>`;}catch(e){html+=`<b>诊断:</b> ${diag.stage1}<br>`;}
+   }
+   if(diag.stage2){
+     try{const s2=JSON.parse(diag.stage2);
+       html+=`<b>交易建议:</b> ${s2.action||'?'}（仓位系数 ${s2.position_scale??'?'}）<br><span style="color:var(--muted)">${s2.risk_note||''}</span>`;}catch(e){html+=`<b>决策:</b> ${diag.stage2}`;}
+   }
+   if(!diag.stage1 && !diag.stage2){ html+=`<b>${diag.note||''}</b>`; }
+   html+=`<div style="margin-top:6px;font-size:12px;color:var(--dim)">${diag.mode} · ${diag.date||''}</div>`;
+   db.innerHTML=html;
+ } else { dp.style.display='none'; }
  const cards=document.getElementById('cards'); cards.innerHTML='';
  const retCls = ov.return==null?'':(ov.return>=0?'up':'down');
  cards.insertAdjacentHTML('beforeend',cardHtml('模拟盘净值',ov.equity==null?'-':ov.equity.toLocaleString()+' 元',ov.return==null?'':fmtPct(ov.return),retCls));

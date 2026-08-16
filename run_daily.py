@@ -28,7 +28,8 @@ STEPS = [
     "step5_generate_signals.py",  # ① 生成今日信号
     "step6_track_signals.py",     # ② 存档 + 信号质量评估
     "step7_paper_trade.py",       # ③ 模拟盘自动执行
-    "dashboard.py",               # ④ 生成可视化看板（失败不阻断流程）
+    "market_diagnosis.py",        # ④ LLM 市场诊断（无Key自动降级，不阻断流程）
+    "dashboard.py",               # ⑤ 生成可视化看板（失败不阻断流程）
 ]
 
 

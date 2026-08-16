@@ -127,31 +127,39 @@ def run_diagnosis() -> dict:
 
     if not cfg["api_key"]:
         # 规则降级：输出客观诊断文本，不做任何决策改动
-        return {
+        result = {
             "mode": "规则模式(未配置Key)",
             "date": snap["date"],
             "index_5d_pct": snap["index_trend"],
             "advance_ratio": snap["advance_ratio"],
             "note": "未配置 API Key，本层不干预交易。填写 config_llm.json 的 api_key 后启用 LLM 诊断。",
         }
+    else:
+        # Stage 1: 市场诊断
+        user1 = (
+            f"日期:{snap['date']} 沪深300近5日涨跌:{snap['index_trend']}% "
+            f"上涨家数占比:{snap['advance_ratio']}% 强势股(涨幅≥3%)家数:{snap['strong_count']} "
+            f"成交额倍率:{snap['amount_ratio']}"
+        )
+        stage1 = _call_llm(cfg, STAGE1_SYSTEM, user1)
 
-    # Stage 1: 市场诊断
-    user1 = (
-        f"日期:{snap['date']} 沪深300近5日涨跌:{snap['index_trend']}% "
-        f"上涨家数占比:{snap['advance_ratio']}% 强势股(涨幅≥3%)家数:{snap['strong_count']} "
-        f"成交额倍率:{snap['amount_ratio']}"
-    )
-    stage1 = _call_llm(cfg, STAGE1_SYSTEM, user1)
+        # Stage 2: 交易决策
+        top_text = "、".join(f"{s['name']}({s['code']},预测+{s['pred_pct']}%)" for s in snap["top_signals"])
+        user2 = (
+            f"市场诊断结果:{stage1}\n"
+            f"今日选股信号Top5:{top_text}\n请给出交易建议。"
+        )
+        stage2 = _call_llm(cfg, STAGE2_SYSTEM, user2)
 
-    # Stage 2: 交易决策
-    top_text = "、".join(f"{s['name']}({s['code']},预测+{s['pred_pct']}%)" for s in snap["top_signals"])
-    user2 = (
-        f"市场诊断结果:{stage1}\n"
-        f"今日选股信号Top5:{top_text}\n请给出交易建议。"
-    )
-    stage2 = _call_llm(cfg, STAGE2_SYSTEM, user2)
+        result = {"mode": "LLM模式", "date": snap["date"], "stage1": stage1, "stage2": stage2}
 
-    return {"mode": "LLM模式", "date": snap["date"], "stage1": stage1, "stage2": stage2}
+    # 落盘，供 webui 展示
+    try:
+        with open(os.path.join(OUTPUT_DIR, "diagnosis.json"), "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+    return result
 
 
 def main():
