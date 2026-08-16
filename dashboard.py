@@ -28,6 +28,24 @@ import pandas as pd
 plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "Arial Unicode MS"]
 plt.rcParams["axes.unicode_minus"] = False
 
+# 暗色专业主题（与 UI 一致）: 深色底 + 亮色文字 + A股红涨绿跌
+plt.rcParams.update({
+    "figure.facecolor": "#0b101d",
+    "axes.facecolor": "#111827",
+    "axes.edgecolor": "#27304a",
+    "axes.labelcolor": "#cbd5e1",
+    "text.color": "#e2e8f0",
+    "xtick.color": "#7d8aa3",
+    "ytick.color": "#7d8aa3",
+    "grid.color": "#1f2a44",
+    "legend.facecolor": "#111827",
+    "legend.edgecolor": "#27304a",
+    "savefig.facecolor": "#0b101d",
+})
+
+UP = "#ef4444"    # A股: 涨=红
+DOWN = "#10b981"  # A股: 跌=绿
+
 DATA_DIR = "data"
 OUTPUT_DIR = "output"
 HTML_FILE = os.path.join(OUTPUT_DIR, "dashboard.html")
@@ -71,14 +89,14 @@ def chart_nav():
     nav["nav"] = nav["equity"].astype(float) / nav["equity"].astype(float).iloc[0]
     idx = safe_read(os.path.join(DATA_DIR, "index_000300.csv"))
     fig, ax = plt.subplots(figsize=(10, 4.5))
-    ax.plot(nav["date"], nav["nav"], label="模拟盘", linewidth=1.6)
+    ax.plot(nav["date"], nav["nav"], label="模拟盘", linewidth=1.8, color="#3b82f6")
     if idx is not None:
         idx["date"] = pd.to_datetime(idx["date"]).dt.strftime("%Y-%m-%d")
         bench = idx[idx["date"].isin(nav["date"])].reset_index(drop=True)
         if not bench.empty:
             bench["bnav"] = bench["close"] / bench["close"].iloc[0]
-            ax.plot(bench["date"], bench["bnav"], label="沪深300", linewidth=1.4, alpha=0.8)
-    ax.set_title("模拟盘净值 vs 沪深300")
+            ax.plot(bench["date"], bench["bnav"], label="沪深300", linewidth=1.4, alpha=0.75, color="#8b5cf6")
+    ax.set_title("模拟盘净值 vs 沪深300", color="#e2e8f0")
     ax.set_ylabel("净值（起点=1）"); ax.legend(); ax.grid(alpha=0.3)
     plt.xticks(rotation=45, fontsize=8); plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "dashboard_nav.png")
@@ -92,10 +110,10 @@ def chart_excess():
     if ev is None or ev.empty:
         return None
     fig, ax = plt.subplots(figsize=(10, 3.6))
-    colors = ["#c0392b" if x < 0 else "#27ae60" for x in ev["超额收益"]]
+    colors = [DOWN if x < 0 else UP for x in ev["超额收益"]]  # A股: 红涨绿跌
     ax.bar(ev["date"], ev["超额收益"], color=colors)
-    ax.axhline(0, color="gray", linewidth=0.8)
-    ax.set_title("信号超额收益（每期 5 日，vs 沪深300）")
+    ax.axhline(0, color="#7d8aa3", linewidth=0.8)
+    ax.set_title("信号超额收益（每期 5 日，vs 沪深300）", color="#e2e8f0")
     ax.set_ylabel("超额收益"); ax.grid(axis="y", alpha=0.3)
     plt.xticks(rotation=45, fontsize=8); plt.tight_layout()
     path = os.path.join(OUTPUT_DIR, "dashboard_excess.png")

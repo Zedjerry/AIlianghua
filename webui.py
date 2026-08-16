@@ -259,9 +259,11 @@ def gen_kline_png(code: str, days: int, out_name: str) -> bool:
     d.index.name = "Date"
     d.columns = [c.lower() for c in d.columns]
 
-    mc = mpf.make_marketcolors(up="red", down="green", edge="inherit",
+    mc = mpf.make_marketcolors(up="#ef4444", down="#10b981", edge="inherit",
                                wick="inherit", volume="inherit")  # A股红涨绿跌
-    style = mpf.make_mpf_style(marketcolors=mc, gridstyle=":", gridcolor="#cccccc")
+    style = mpf.make_mpf_style(base_mpf_style="nightclouds", marketcolors=mc,
+                               gridstyle=":", gridcolor="#1f2a44",
+                               facecolor="#0b101d", figcolor="#0b101d")
     fig, _ = mpf.plot(d, type="candle", style=style, volume=True,
                       mav=(5, 20, 60), figsize=(12, 7),
                       title=f"{code} 日K线（近{days}个交易日）",
@@ -347,8 +349,16 @@ def api_refresh_charts():
 
 
 # ---------------- 页面模板 ----------------
+def load_template():
+    """读取外部 UI 模板文件（webui_template.html，专业暗色设计）"""
+    path = os.path.join(BASE_DIR, "webui_template.html")
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
 
-HTML = r"""<!DOCTYPE html>
+
+# 模板已抽到 webui_template.html
+HTML = load_template()
+_LEGACY_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AI 量化系统 UI</title>

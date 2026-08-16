@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 量化系统</title>
+<style>
+:root{
+  --bg:#0a0e1a; --panel:#111827; --panel2:#0e1526; --border:#1f2a44;
+  --text:#e5e9f0; --muted:#94a3b8; --dim:#64748b;
+  --accent:#3b82f6; --accent2:#8b5cf6; --up:#ef4444; --down:#10b981;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+body{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;
+     background:var(--bg);color:var(--text);margin:0;padding:0;
+     background-image:radial-gradient(1200px 500px at 20% -10%,rgba(59,130,246,.08),transparent),
+                      radial-gradient(900px 400px at 90% -10%,rgba(139,92,246,.06),transparent)}
+/* ---------- 顶部导航 ---------- */
+.nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+     gap:12px;padding:10px 22px;background:rgba(10,14,26,.85);backdrop-filter:blur(10px);
+     border-bottom:1px solid var(--border);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:700;letter-spacing:.5px}
+.logo{width:26px;height:26px;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:inline-flex;align-items:center;justify-content:center;font-size:14px;color:#fff}
+.badge{font-size:12px;background:#1f2937;border-radius:999px;padding:3px 10px;color:var(--muted);font-weight:400}
+.nav-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.live{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--down)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--down);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.btn{border:none;border-radius:9px;padding:8px 14px;font-size:13px;cursor:pointer;color:#fff;
+     background:var(--accent);transition:all .15s;font-family:inherit}
+.btn:hover{filter:brightness(1.15)}
+.btn.orange{background:#d97706}.btn.ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:var(--dim)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* ---------- 任务状态条 ---------- */
+.taskbar{display:flex;align-items:center;gap:10px;padding:8px 22px;font-size:13px;color:var(--muted);
+         border-bottom:1px solid var(--border);background:var(--panel2);min-height:36px}
+.spinner{width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--accent);
+         border-radius:50%;animation:spin .8s linear infinite;display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.taskbar.busy .spinner{display:inline-block}
+.taskbar.busy{color:var(--accent)}
+.pill{font-size:12px;border-radius:999px;padding:2px 10px}
+.pill.ok{background:rgba(16,185,129,.15);color:var(--down)}
+.pill.bad{background:rgba(239,68,68,.15);color:var(--up)}
+/* ---------- 标签页 ---------- */
+.tabs{display:flex;gap:4px;padding:10px 22px 0;flex-wrap:wrap}
+.tab{padding:8px 18px;cursor:pointer;border-radius:10px 10px 0 0;font-size:13.5px;
+     color:var(--muted);background:transparent;border:1px solid transparent;border-bottom:none;transition:all .15s}
+.tab:hover{color:var(--text)}
+.tab.active{color:#fff;background:var(--panel);border-color:var(--border);font-weight:600}
+/* ---------- 内容区 ---------- */
+.wrap{max-width:1280px;margin:0 auto;padding:18px 22px 40px}
+.page{display:none}.page.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* 指标卡片 */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+      padding:14px 16px;transition:transform .15s,border-color .15s}
+.card:hover{transform:translateY(-2px);border-color:#2c3a5c}
+.k{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+.k::before{content:"";width:3px;height:10px;border-radius:2px;background:var(--accent)}
+.v{font-size:23px;font-weight:700;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.s{font-size:12px;color:var(--dim)}
+.up{color:var(--up)}.down{color:var(--down)}.pos{color:var(--up)}.neg{color:var(--down)}
+/* 面板 */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+       padding:16px;margin-bottom:14px}
+.panel h2{font-size:14px;margin:0 0 12px;color:var(--text);font-weight:600;
+          display:flex;align-items:center;gap:8px}
+.panel h2::before{content:"";width:3px;height:13px;border-radius:2px;background:linear-gradient(var(--accent),var(--accent2))}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:960px){.grid2{grid-template-columns:1fr}}
+img{max-width:100%;border-radius:10px;display:block}
+.kimg{background:var(--panel2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+/* 表格 */
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;font-variant-numeric:tabular-nums}
+th{color:var(--dim);font-weight:500;font-size:12px;background:var(--panel2)}
+tbody tr:hover{background:rgba(59,130,246,.06)}
+.empty{color:var(--dim);font-size:13px;padding:8px 0}
+/* K线页控件 */
+.inp{flex:1;min-width:220px;padding:8px 12px;border-radius:9px;border:1px solid var(--border);
+     background:var(--panel2);color:var(--text);font-size:13px;font-family:inherit;outline:none}
+.inp:focus{border-color:var(--accent)}
+.sel{padding:8px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13px;outline:none}
+.msg{color:var(--up);font-size:12px;margin:6px 0}
+code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12px}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-thumb{background:#26314f;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+</style></head><body>
+
+<!-- 顶部导航 -->
+<div class="nav">
+  <div class="brand"><span class="logo">AI</span>量化系统 <span id="sigdate" class="badge"></span></div>
+  <div class="nav-actions">
+    <span class="live"><i class="dot"></i>本地服务运行中</span>
+    <button class="btn" onclick="runAction('/api/run_daily')">运行每日流程</button>
+    <button class="btn orange" onclick="runAction('/api/reset_account')">重置模拟盘</button>
+    <button class="btn ghost" onclick="runAction('/api/refresh_charts')">刷新图表</button>
+  </div>
+</div>
+
+<!-- 任务状态 -->
+<div id="taskbar" class="taskbar"><span class="spinner"></span><span id="tasktext">系统就绪</span></div>
+
+<!-- 标签页 -->
+<div class="tabs">
+  <span class="tab active" data-p="overview" onclick="showPage(this)">首页</span>
+  <span class="tab" data-p="signals" onclick="showPage(this)">信号</span>
+  <span class="tab" data-p="account" onclick="showPage(this)">模拟盘</span>
+  <span class="tab" data-p="eval" onclick="showPage(this)">评估</span>
+  <span class="tab" data-p="kline" onclick="showPage(this)">K线</span>
+  <span class="tab" data-p="alerts" onclick="showPage(this)">告警</span>
+</div>
+
+<div class="wrap">
+
+<!-- 首页 -->
+<div id="overview" class="page active">
+  <div class="cards" id="cards"></div>
+  <div class="grid2">
+    <div class="panel"><h2>模拟盘净值 vs 沪深300</h2><div class="kimg"><img id="navimg" src="/img/dashboard_nav.png?t=0"></div></div>
+    <div class="panel"><h2>信号超额收益</h2><div class="kimg"><img id="excessimg" src="/img/dashboard_excess.png?t=0"></div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h2 id="k1title">今日信号 #1</h2><div class="kimg"><img id="k1img"></div></div>
+    <div class="panel"><h2 id="k2title">今日信号 #2</h2><div class="kimg"><img id="k2img"></div></div>
+  </div>
+</div>
+
+<!-- 信号 -->
+<div id="signals" class="page">
+  <div class="panel"><h2>今日信号 Top20（预测未来5日涨幅）</h2>
+   <table><thead><tr><th>代码</th><th>名称</th><th>收盘价</th><th>预测涨幅</th></tr></thead>
+   <tbody id="sigbody"></tbody></table></div>
+</div>
+
+<!-- 模拟盘 -->
+<div id="account" class="page">
+  <div class="cards" id="acccards"></div>
+  <div class="grid2">
+   <div class="panel"><h2>当前持仓</h2>
+    <table><thead><tr><th>代码</th><th>名称</th><th>股数</th></tr></thead>
+    <tbody id="posbody"></tbody></table></div>
+   <div class="panel"><h2>持仓分布</h2><div class="kimg"><img id="holdimg" src="/img/dashboard_holdings.png?t=0"></div></div>
+  </div>
+</div>
+
+<!-- 评估 -->
+<div id="eval" class="page">
+  <div class="cards" id="evalcards"></div>
+  <div class="panel"><h2>信号质量评估明细</h2>
+   <table><thead><tr><th>日期</th><th>信号5日收益</th><th>沪深300同期</th><th>超额</th><th>来源</th></tr></thead>
+   <tbody id="evalbody"></tbody></table></div>
+</div>
+
+<!-- K线 -->
+<div id="kline" class="page">
+  <div class="panel"><h2>K线图（红涨绿跌 · 含 5/20/60 日均线与成交量）</h2>
+   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+    <input id="kcode" class="inp" list="stocklist" placeholder="输入代码或名称，如 000001 / 平安银行">
+    <datalist id="stocklist"></datalist>
+    <select id="kdays" class="sel">
+     <option value="120">近半年</option>
+     <option value="250" selected>近一年</option>
+     <option value="500">近两年</option>
+    </select>
+    <button class="btn" onclick="showKline()">查看</button>
+   </div>
+   <div id="kmsg" class="msg"></div>
+   <div class="kimg"><img id="klineimg" style="display:none"></div>
+  </div>
+</div>
+
+<!-- 告警 -->
+<div id="alerts" class="page">
+  <div class="panel"><h2>告警记录</h2><div id="alertbody" class="empty"></div></div>
+</div>
+
+</div>
+
+<script>
+function showPage(el){
+ document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+ document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+ el.classList.add('active');
+ document.getElementById(el.dataset.p).classList.add('active');
+}
+async function get(url){const r=await fetch(url);return r.json();}
+async function runAction(url){
+ const r=await fetch(url,{method:'POST'});const j=await r.json();
+ alert(j.msg);refresh();
+}
+let lastSigDate = null;
+async function loadTop2Kline(sigdate){
+ if(!sigdate || sigdate===lastSigDate) return;  // 信号日没变就不重复生成
+ lastSigDate = sigdate;
+ const r = await get('/api/top2_kline');
+ if(r.ok){
+   const t1=document.getElementById('k1title'), t2=document.getElementById('k2title');
+   const i1=document.getElementById('k1img'), i2=document.getElementById('k2img');
+   t1.textContent = r.titles[0] ? r.titles[0]+' K线' : '今日信号 #1';
+   t2.textContent = r.titles[1] ? r.titles[1]+' K线' : '今日信号 #2';
+   if(r.urls[0]) i1.src=r.urls[0]+'?t='+Date.now();
+   if(r.urls[1]) i2.src=r.urls[1]+'?t='+Date.now();
+ }
+}
+function fmtPct(x){return (x>=0?'+':'')+ (x*100).toFixed(2)+'%';}
+function cardHtml(k,v,s,cls){return `<div class="card"><div class="k">${k}</div><div class="v ${cls||''}">${v}</div><div class="s">${s}</div></div>`;}
+async function refresh(){
+ // 概览卡片
+ const ov=await get('/api/overview');
+ document.getElementById('sigdate').textContent='信号日 '+ov.signal_date;
+ loadTop2Kline(ov.signal_date);
+ const cards=document.getElementById('cards'); cards.innerHTML='';
+ const retCls = ov.return==null?'':(ov.return>=0?'up':'down');
+ cards.insertAdjacentHTML('beforeend',cardHtml('模拟盘净值',ov.equity==null?'-':ov.equity.toLocaleString()+' 元',ov.return==null?'':fmtPct(ov.return),retCls));
+ cards.insertAdjacentHTML('beforeend',cardHtml('当前持仓',ov.positions+' 只','现金 '+(ov.cash==null?'-':ov.cash.toLocaleString())));
+ cards.insertAdjacentHTML('beforeend',cardHtml('信号评估',ov.eval_total+' 期','向前验证 '+ov.eval_forward+' 期'));
+ cards.insertAdjacentHTML('beforeend',cardHtml('跑赢胜率',ov.win_rate==null?'-':(ov.win_rate*100).toFixed(0)+'%','>60% 才算达标',
+   ov.win_rate==null?'':(ov.win_rate>=0.6?'up':'down')));
+ // 信号
+ const sig=await get('/api/signals');
+ document.getElementById('sigbody').innerHTML=sig.map(r=>
+   `<tr><td>${r.code}</td><td>${r.name}</td><td>${r.close}</td><td class="pos">+${r.pred}%</td></tr>`).join('');
+ // 模拟盘
+ const acc=await get('/api/account');
+ document.getElementById('acccards').innerHTML=
+   cardHtml('账户净值',acc.equity.toLocaleString()+' 元','初始 '+acc.start.toLocaleString())+
+   cardHtml('可用现金',acc.cash.toLocaleString()+' 元','持仓 '+acc.holdings.length+' 只');
+ document.getElementById('posbody').innerHTML=acc.holdings.map(h=>
+   `<tr><td>${h.code}</td><td>${h.name}</td><td>${h.shares}</td></tr>`).join('')
+   || '<tr><td colspan="3" class="empty">空仓</td></tr>';
+ // 评估
+ const ev=await get('/api/evaluation');
+ const ec=document.getElementById('evalcards'); ec.innerHTML='';
+ if(ev.walkforward) ec.insertAdjacentHTML('beforeend',
+   cardHtml('跨年稳健性(滚动样本外)',ev.walkforward.periods+'期',
+     `平均IC ${ev.walkforward.avg_ic} · IC为正 ${(ev.walkforward.ic_pos_ratio*100).toFixed(0)}% · 平均超额 ${ev.walkforward.avg_excess}%`));
+ document.getElementById('evalbody').innerHTML=ev.rows.map(r=>
+   `<tr><td>${r.date}</td><td class="${r.signal>=0?'pos':'neg'}">${r.signal}%</td>`+
+   `<td class="${r.bench>=0?'pos':'neg'}">${r.bench}%</td>`+
+   `<td class="${r.excess>=0?'pos':'neg'}">${r.excess>0?'+':''}${r.excess}%</td><td>${r.source}</td></tr>`).join('')
+   || '<tr><td colspan="5" class="empty">暂无评估数据</td></tr>';
+ // 告警
+ const al=await get('/api/alerts');
+ document.getElementById('alertbody').innerHTML=al.join('<br>')||'暂无告警';
+ // 任务状态
+ const tk=await get('/api/task');
+ const tb=document.getElementById('taskbar'), tt=document.getElementById('tasktext');
+ if(tk.running){tb.classList.add('busy');tt.textContent='正在运行: '+tk.name+'（'+tk.start+' 开始）…';}
+ else{tb.classList.remove('busy');
+   if(tk.finish){tt.innerHTML='任务 '+tk.name+' 于 '+tk.finish+' 结束 '+
+     (tk.exit===0?'<span class="pill ok">成功</span>':'<span class="pill bad">失败 · 退出码 '+tk.exit+'</span>')+
+     ' · <code>'+tk.log_file+'</code>';}
+   else{tt.textContent='系统就绪';}}
+ // 图表加时间戳刷新
+ const t=Date.now();
+ document.getElementById('navimg').src='/img/dashboard_nav.png?t='+t;
+ document.getElementById('excessimg').src='/img/dashboard_excess.png?t='+t;
+ document.getElementById('holdimg').src='/img/dashboard_holdings.png?t='+t;
+}
+// K线页
+async function loadStockList(){
+ const list=await get('/api/stock_list');
+ document.getElementById('stocklist').innerHTML=
+   list.map(s=>`<option value="${s.code} ${s.name}">`).join('');
+}
+async function showKline(){
+ const raw=document.getElementById('kcode').value.trim();
+ const code=(raw.split(' ')[0]||'').match(/\d{6}/)?.[0]||'';
+ const days=document.getElementById('kdays').value;
+ const img=document.getElementById('klineimg');
+ const msg=document.getElementById('kmsg');
+ if(!code){msg.textContent='请输入6位股票代码';return;}
+ msg.textContent='加载中...';
+ const r=await get('/api/kline?code='+code+'&days='+days);
+ if(r.ok){img.src='/img/kline.png?t='+Date.now();img.style.display='block';msg.textContent='';}
+ else{img.style.display='none';msg.textContent=r.msg;}
+}
+document.getElementById('kcode').addEventListener('keydown',e=>{if(e.key==='Enter')showKline();});
+loadStockList();
+refresh();
+setInterval(refresh, 20000);  // 每20秒自动刷新
+</script>
+</body></html>
