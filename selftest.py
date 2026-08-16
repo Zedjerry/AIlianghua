@@ -39,7 +39,8 @@ def env_check():
 
 def data_check():
     for f in ["data/stock_daily.csv", "data/index_000300.csv", "data/stock_list.csv",
-              "output/signals_today.csv", "output/paper_account.json"]:
+              "data/extra_factors.csv", "output/signals_today.csv",
+              "output/paper_account.json"]:
         assert os.path.exists(f), f"缺少文件 {f}"
     import pandas as pd
     latest = pd.to_datetime(pd.read_csv("data/stock_daily.csv", usecols=["date"])["date"].max())

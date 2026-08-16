@@ -61,6 +61,7 @@ def prepare_features(daily: pd.DataFrame):
     print("② 计算特征...", flush=True)
     df = s2.build_features(daily)
     df = s2.add_rank_features(df)
+    df = s2.merge_extra_factors(df)   # 资金流/北向/情绪 额外因子
     feature_cols = [c for c in df.columns if c not in ("date", "code", "label") + tuple(RAW_DROP)]
 
     # 无穷值/缺失值处理：只用「有标签」部分的中位数填充，避免引入未来信息

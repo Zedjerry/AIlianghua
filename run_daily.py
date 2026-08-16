@@ -24,6 +24,7 @@ LOG_DIR = os.path.join(BASE_DIR, "output", "daily_logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 STEPS = [
+    "step2b_extra_factors.py",    # ⓪ 额外因子（资金流/北向/情绪，数据新则秒级跳过）
     "step5_generate_signals.py",  # ① 生成今日信号
     "step6_track_signals.py",     # ② 存档 + 信号质量评估
     "step7_paper_trade.py",       # ③ 模拟盘自动执行

@@ -24,12 +24,16 @@ import pandas as pd
 
 DATA_DIR = "data"
 OUTPUT = os.path.join(DATA_DIR, "features.csv")
+EXTRA_CSV = os.path.join(DATA_DIR, "extra_factors.csv")
 
 # 未来多少天收益作为标签（预测目标）
 LABEL_HORIZON = 5
 
 # 需要做横截面排名（每天在全市场排序）的特征
 RANK_FEATURES = ["ret_5", "close_ma20", "vol_20"]
+
+# 额外因子中"个股级"的列，做横截面排名（市场级因子直接广播即可）
+PER_STOCK_RANK = ["mf_intraday", "mf_amt_ratio"]
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -83,6 +87,29 @@ def add_rank_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def merge_extra_factors(df: pd.DataFrame) -> pd.DataFrame:
+    """合并 step2b 生成的额外因子（资金流/北向/情绪），并对个股级因子做横截面排名"""
+    if not os.path.exists(EXTRA_CSV):
+        print("[提示] 未找到 data/extra_factors.csv，跳过额外因子（可运行 step2b_extra_factors.py 生成）")
+        return df
+    extra = pd.read_csv(EXTRA_CSV, dtype={"code": str})
+    df = df.merge(extra, on=["date", "code"], how="left")
+    # 北向资金 2024-08 起官方停止披露 → 测试期全是填充常量，会毁掉模型预测，
+    # 故不进入特征（数据仍保留在 extra_factors.csv 供研究）
+    df = df.drop(columns=[c for c in ["nb_net_buy", "nb_cum_net"] if c in df.columns])
+    # 市场级情绪因子: 实测同日/滞后1日版本都会把模型从"选股"带偏到"择时"、
+    # 显著降低样本外 IC（0.083→0.010），故不进入特征；
+    # 数据仍保留在 extra_factors.csv，想实验可临时改回
+    df = df.drop(columns=[c for c in
+                          ["mkt_adv_ratio", "mkt_strong", "mkt_avg_ret",
+                           "mkt_amount", "mkt_vol_ratio"] if c in df.columns])
+    for f in PER_STOCK_RANK:
+        rk = f"rank_{f}"
+        if f in df.columns and rk not in df.columns:
+            df[rk] = df.groupby("date")[f].rank(pct=True)
+    return df
+
+
 def main():
     if not os.path.exists(os.path.join(DATA_DIR, "stock_daily.csv")):
         raise SystemExit("找不到 data/stock_daily.csv，请先运行: python step1_fetch_data.py")
@@ -92,6 +119,7 @@ def main():
 
     df = build_features(raw)
     df = add_rank_features(df)
+    df = merge_extra_factors(df)   # 资金流/北向/情绪 额外因子
 
     # ---------- 清洗 ----------
     # 特征列：除 date/code/label 和原始价格/成交量列外都是特征
