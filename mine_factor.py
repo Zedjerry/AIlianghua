@@ -8,6 +8,7 @@ mine_factor.py — 用 AlphaMaster 的 RL 在我们自己的 A 股数据上挖�
 用法:
     python mine_factor.py --symbol 600519 --steps 600      # 快速验证（约几分钟）
     python mine_factor.py --symbol 600519 --steps 9000     # 完整挖掘（CPU 上可能数小时）
+    python mine_factor.py --file "D:\...\000001_daily.parquet" --steps 300   # 直接用你已有的旧数据挖
     python mine_factor.py --symbol 000001 --steps 600 --from-scratch
 
 输出:
@@ -27,7 +28,9 @@ FORMULA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "formulas
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--symbol", default="600519", help="要挖的股票代码")
+    parser.add_argument("--symbol", default="600519", help="股票代码（用默认数据目录时）")
+    parser.add_argument("--file", default=None,
+                        help="直接指定 parquet 数据文件（优先于 --symbol）")
     parser.add_argument("--steps", type=int, default=600, help="RL 训练步数（正式用 9000）")
     parser.add_argument("--from-scratch", action="store_true", help="从头训练（清检查点）")
     args = parser.parse_args()
@@ -43,9 +46,12 @@ def main():
 
     from train_file import train_from_file
 
-    data_file = os.path.join(ALPHA_WORK, "data_a", f"{args.symbol}_D1.parquet")
+    if args.file:
+        data_file = args.file
+    else:
+        data_file = os.path.join(ALPHA_WORK, "data_a", f"{args.symbol}_D1.parquet")
     if not os.path.exists(data_file):
-        raise SystemExit(f"缺少数据: {data_file}，请先运行 export_alpha_data.py")
+        raise SystemExit(f"缺少数据: {data_file}，请先运行 export_alpha_data.py 或指定 --file")
 
     engine = train_from_file(data_file, from_scratch=args.from_scratch)
     if engine is None:
