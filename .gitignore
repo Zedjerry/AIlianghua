@@ -1,0 +1,6 @@
+# 生成的数据文件（运行脚本可重新生成，且 features.csv 超过 GitHub 100MB 限制）
+data/
+
+# Python 缓存
+__pycache__/
+*.pyc
