@@ -1,0 +1,20 @@
+{
+  "vocab_version": "v9217a2c0d91a",
+  "symbol": "600036",
+  "timeframe": "D1",
+  "data_file": "D:\\测试\\alpha_work\\data_a\\600036_D1.parquet",
+  "mode": "parquet_file",
+  "formula": [
+    61,
+    122,
+    24,
+    69,
+    102,
+    40,
+    94,
+    126
+  ],
+  "formula_decoded": "AC2 -> WINSORIZE -> OBV_SLOPE -> NEG -> DECAY_LINEAR_5 -> RS_VOL -> EMA_20 -> IF_GT",
+  "best_score": 1.8096274137496948,
+  "train_steps": 300
+}
