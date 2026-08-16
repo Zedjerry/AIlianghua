@@ -85,6 +85,8 @@ def compute_orders(holdings: dict, target_codes: list, cash: float,
     for code in target_codes:
         if code in result.positions:
             continue
+        if len(result.positions) >= top_k:
+            break  # 持仓数已达上限，停止买入（资金小时会在名单里顺延找买得起的）
         price = prices.get(code)
         if price is None:
             result.orders.append(Order("买", code, 0, 0.0, "当日无价格(停牌/未上市)，跳过"))

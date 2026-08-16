@@ -132,7 +132,8 @@ def compute_limits(closes: pd.DataFrame, date_str: str, codes) -> tuple:
     return limit_up, limit_down
 
 
-def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.DataFrame):
+def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.DataFrame,
+                   top_k: int = TOP_K):
     """在 date_str 收盘执行调仓，返回当日的交易记录"""
     trades = []
     prices_s = closes.loc[date_str] if date_str in closes.index else pd.Series(dtype=float)
@@ -158,7 +159,7 @@ def execute_trades(acc: dict, date_str: str, target_codes: list, closes: pd.Data
     # 正常调仓（含"熔断时只卖不买"）: 决策逻辑全部在 rebalance.py 纯函数里
     res = compute_orders(
         acc["positions"], target_codes, acc["cash"], prices,
-        top_k=TOP_K, cost=COST, max_position_pct=MAX_POSITION_PCT,
+        top_k=top_k, cost=COST, max_position_pct=MAX_POSITION_PCT,
         allow_buy=not acc.get("halt", False),
         block_buy=limit_up, block_sell=limit_down,
     )
@@ -186,8 +187,15 @@ def mark_equity(acc: dict, date_str: str, closes: pd.DataFrame):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--capital", type=float, default=200000.0, help="初始资金（默认20万）")
+    parser.add_argument("--capital", type=float, default=4000.0, help="初始资金（默认4000元）")
+    parser.add_argument("--topk", type=int, default=None,
+                        help="目标持仓数量（默认按资金自动适配：约每1500元买1只，上限20只）")
     args = parser.parse_args()
+
+    # 资金少自动减少持仓数，避免"每只分不到一手"而空仓
+    top_k = args.topk or max(1, min(TOP_K, int(args.capital // 1500)))
+    if args.topk is None:
+        print(f"[提示] 资金 {args.capital:,.0f} 元 → 自动适配持仓 {top_k} 只（可用 --topk 覆盖）", flush=True)
 
     closes = load_closes()
     dates = signal_dates()
@@ -209,8 +217,9 @@ def main():
     acc["halt"] = False
     acc["liquidate"] = False
     for d in dates:
+        # 传完整信号名单，由调仓函数按"预测顺序 + 买得起"挑选，最多持有 top_k 只
         target = load_signal(d)
-        trades = execute_trades(acc, d, target, closes)
+        trades = execute_trades(acc, d, target, closes, top_k=top_k)
         mark_equity(acc, d, closes)
         # 风控判定（risk_manager 纯函数）: 更新回撤跟踪 + 熔断/清仓开关
         peak_equity = max(peak_equity, acc["equity"])
